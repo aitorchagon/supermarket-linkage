@@ -1,0 +1,50 @@
+# Local master + worker. Architecture matches DESIGN.md §4:
+# Streamlit never loads the embedding model or calls Mercadona.
+# Worker: FastAPI on container port 7860 (HF Spaces convention); host 8000.
+#
+# Sample (default, from .env.example): USE_SAMPLE_CATALOG=1
+# Live Mercadona: USE_SAMPLE_CATALOG=0 docker compose up --build
+#
+# Playwright is not used.
+
+services:
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    ports:
+      - "8000:7860"
+    environment:
+      PORT: "7860"
+      WORKER_API_KEY: ${WORKER_API_KEY:-change-me-to-a-random-string}
+      USE_SAMPLE_CATALOG: ${USE_SAMPLE_CATALOG:-1}
+      SAMPLE_CATALOG_PATH: ${SAMPLE_CATALOG_PATH:-}
+      SKIP_MODEL_PRELOAD: ${SKIP_MODEL_PRELOAD:-}
+      DEFAULT_WAREHOUSE: ${DEFAULT_WAREHOUSE:-mad1}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:7860/health', timeout=5)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 180s
+    restart: unless-stopped
+
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    ports:
+      - "8501:8501"
+    environment:
+      WORKER_URL: http://worker:7860
+      WORKER_API_KEY: ${WORKER_API_KEY:-change-me-to-a-random-string}
+    depends_on:
+      worker:
+        condition: service_healthy
+    restart: unless-stopped

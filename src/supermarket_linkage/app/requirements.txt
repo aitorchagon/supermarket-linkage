@@ -1,0 +1,8 @@
+# Streamlit Community Cloud + Dockerfile.streamlit only.
+# Embeddings and Mercadona HTTP stay on the worker — do not add torch or
+# sentence-transformers. This file sits next to streamlit_app.py so Cloud
+# uses it instead of the repo-root uv.lock / pyproject.toml (those pull torch).
+streamlit>=1.40
+httpx>=0.27
+polars>=1.0,<2.0
+numpy>=1.26

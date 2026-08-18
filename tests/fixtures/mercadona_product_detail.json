@@ -1,0 +1,33 @@
+{
+  "id": "41001",
+  "ean": "8480000241001",
+  "slug": "atun-claro-en-aceite-de-oliva-hacendado-pack-3",
+  "display_name": "Atún claro en aceite de oliva Hacendado",
+  "packaging": "Pack-3",
+  "brand": "Hacendado",
+  "published": true,
+  "share_url": "https://tienda.mercadona.es/product/41001/atun-claro-en-aceite-de-oliva-hacendado-pack-3",
+  "thumbnail": "https://prod-mercadona.imgix.net/images/example.jpg",
+  "price_instructions": {
+    "iva": 10,
+    "is_new": false,
+    "is_pack": true,
+    "unit_size": 0.24,
+    "bulk_price": "12.08",
+    "unit_price": "2.90",
+    "size_format": "kg",
+    "price_decreased": true,
+    "reference_price": "12.08",
+    "reference_format": "kg",
+    "previous_unit_price": "3.45",
+    "unit_selector": true,
+    "bunch_selector": false,
+    "min_bunch_amount": 1.0,
+    "increment_bunch_amount": 1.0,
+    "pack_size": 3,
+    "total_units": 3
+  },
+  "nutrition_information": {
+    "ingredients": "Atún, aceite de oliva."
+  }
+}

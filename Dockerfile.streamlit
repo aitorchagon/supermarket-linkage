@@ -1,0 +1,29 @@
+# Streamlit master. No embedding model, no Mercadona HTTP, no Playwright.
+# Talks to the worker via WORKER_URL + WORKER_API_KEY.
+
+FROM python:3.12-slim-bookworm
+
+RUN useradd -m -u 1000 user
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    HOME=/home/user \
+    PATH=/home/user/.local/bin:$PATH \
+    PYTHONPATH=/home/user/app/src
+
+WORKDIR /home/user/app
+
+USER user
+
+COPY --chown=user src/supermarket_linkage/app/requirements.txt ./requirements.txt
+RUN python -m pip install --user --upgrade pip \
+ && python -m pip install --user -r requirements.txt
+
+COPY --chown=user src ./src
+
+EXPOSE 8501
+
+CMD ["streamlit", "run", "src/supermarket_linkage/app/streamlit_app.py", \
+     "--server.address", "0.0.0.0", "--server.port", "8501", \
+     "--server.headless", "true"]
