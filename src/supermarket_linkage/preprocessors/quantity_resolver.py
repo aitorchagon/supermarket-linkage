@@ -1,7 +1,10 @@
-"""Compute units_needed and line totals after a product winner is chosen."""
-
 from __future__ import annotations
 
+from typing import (
+    Optional,
+    Tuple,
+    List,
+)
 import math
 
 import polars as pl
@@ -11,11 +14,11 @@ from supermarket_linkage.preprocessors.price_normalizer import parse_weight_from
 from supermarket_linkage.schemas.line_result_table import LineResultColumns, LineResultTable
 
 
-def units_needed_for(requested_kg: float | None, pack_kg: float | None) -> Tuple[int, bool]:
-    """Ceil(requested / pack), minimum 1.
-
-    Returns ``(units_needed, pack_size_missing)``.
-    Missing pack → (1, True). Missing/zero requested → (1, pack_missing).
+def units_for_total_weight(requested_kg: Optional[float], pack_kg: Optional[float]) -> Tuple[int, bool]:
+    """
+    This function allows to calculate how many units (packages) do we need to fulfill a requested total weight.
+    We do not provide less than one unit. It returns a tuple that contains the units needed and whether
+    we are missing a pack size.
     """
     pack_missing = pack_kg is None or pack_kg <= 0
     if pack_missing:
@@ -26,18 +29,22 @@ def units_needed_for(requested_kg: float | None, pack_kg: float | None) -> Tuple
 
 
 class QuantityResolver(BasePreprocessor):
-    """Fulfill requested amount with pack size after winner selection."""
+    """
+    This class allows to resolve a requested amount with a pack size
+    after we have selected a final winner.
+    """
 
     def process(self, df: pl.DataFrame) -> pl.DataFrame:
-        """Set ``pack_size_kg``, ``units_needed``, totals, ``pack_size_missing``.
+        """
+        It creates and fulfills the columns pack_size_kg, units_needed, totals and pack_size_missing,
+        where totals refer to the total requested quantity. Originally, we have optional columns 
+        requested_amount_kg, approx_weight_kg, pack_size_kg, name (name of product) and effective_price_eur.
 
-        Pre: Rows with optional ``requested_amount_kg``, ``approx_weight_kg`` /
-        ``pack_size_kg``, ``name``, ``effective_price_eur``.
-        Post: ``LineResultTable.enforce_schema``; min units is 1.
+        The minimum number of units provided is 1.
         """
         base = LineResultTable.enforce_schema(df)
 
-        # Carry approx_weight_kg if present before enforce dropped it.
+        # Carry approx_weight_kg if present before enforce schema dropped it.
         approx_col = (
             df.get_column("approx_weight_kg")
             if "approx_weight_kg" in df.columns
@@ -45,9 +52,9 @@ class QuantityResolver(BasePreprocessor):
         )
 
         units_list: List[int] = []
-        pack_list: List[float | None] = []
+        pack_list: List[Optional[float]] = []
         missing_list: List[bool] = []
-        total_list: List[float | None] = []
+        total_list: List[Optional[float]] = []
 
         for i, row in enumerate(base.iter_rows(named=True)):
             requested = row[LineResultColumns.REQUESTED_AMOUNT_KG]
@@ -57,9 +64,14 @@ class QuantityResolver(BasePreprocessor):
                 if approx is not None and approx > 0:
                     pack = approx
                 else:
-                    pack = parse_weight_from_name(row[LineResultColumns.NAME])
+                    pack = parse_weight_from_name(
+                        name=row[LineResultColumns.NAME]
+                    )
 
-            units, pack_missing = units_needed_for(requested, pack)
+            units, pack_missing = units_for_total_weight(
+                requested_kg=requested, 
+                pack_kg=pack,
+            )
             if pack_missing:
                 pack = None
             price = row[LineResultColumns.EFFECTIVE_PRICE_EUR]

@@ -4,31 +4,31 @@ import polars as pl
 
 from supermarket_linkage.preprocessors.quantity_resolver import (
     QuantityResolver,
-    units_needed_for,
+    units_for_total_weight,
 )
 from supermarket_linkage.schemas.line_result_table import LineResultColumns, LineResultTable
 
 
 def test_units_needed_1500g_vs_1kg() -> None:
-    units, missing = units_needed_for(1.5, 1.0)
+    units, missing = units_for_total_weight(1.5, 1.0)
     assert units == 2
     assert missing is False
 
 
 def test_units_needed_500g_vs_1kg() -> None:
-    units, missing = units_needed_for(0.5, 1.0)
+    units, missing = units_for_total_weight(0.5, 1.0)
     assert units == 1
     assert missing is False
 
 
 def test_units_needed_2_5l_vs_1l() -> None:
-    units, missing = units_needed_for(2.5, 1.0)
+    units, missing = units_for_total_weight(2.5, 1.0)
     assert units == 3
     assert missing is False
 
 
 def test_units_needed_missing_pack() -> None:
-    units, missing = units_needed_for(1.5, None)
+    units, missing = units_for_total_weight(1.5, None)
     assert units == 1
     assert missing is True
 

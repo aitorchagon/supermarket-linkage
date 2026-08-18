@@ -1,5 +1,3 @@
-"""Abstract preprocessor: DataFrame in, DataFrame out."""
-
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -8,12 +6,14 @@ import polars as pl
 
 
 class BasePreprocessor(ABC):
-    """Transform a Polars DataFrame in place of a pipeline step."""
+    """
+    This is a base preprocessor for polars DataFrames
+    """
 
     @abstractmethod
     def process(self, df: pl.DataFrame) -> pl.DataFrame:
-        """Apply this preprocessor.
-
-        Pre: ``df`` has the columns this subclass expects.
-        Post: New DataFrame with derived columns; row count unchanged.
+        """
+        This function applies the preprocessor. It expects a polars DataFrame 
+        and it will transform it with derived columns, the row count should
+        remain unchanged.
         """

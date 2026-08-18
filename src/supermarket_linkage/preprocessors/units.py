@@ -1,8 +1,7 @@
-"""Shared mass/volume conversion to a kg-equivalent base."""
-
 from __future__ import annotations
-
-# Density 1.0: 1 L ↔ 1 kg for ranking / quantity math.
+from typing import Optional
+# The heuristic is that density is 1 for all the products, so one liter is one kg
+# for ranking exclusively (we do not take into account physics, it is not necessary)
 _TO_KG: dict[str, float] = {
     "kg": 1.0,
     "kilo": 1.0,
@@ -19,16 +18,11 @@ _TO_KG: dict[str, float] = {
 }
 
 
-def parse_numeric(raw: str) -> float | None:
-    """Parse a decimal string that may use comma as separator."""
-    try:
-        return float(raw.replace(",", "."))
-    except (TypeError, ValueError):
-        return None
-
-
-def to_kg(value: float, unit: str) -> float | None:
-    """Convert mass/volume to kg-equivalent. None for unknown / unit counts."""
+def to_kg(value: float, unit: str) -> Optional[float]:
+    """
+    This function converts mass or volume to a kilogram equivalent, and returns None
+    for unknown or unit counts.
+    """
     factor = _TO_KG.get(unit.lower())
     if factor is None:
         return None
@@ -36,6 +30,8 @@ def to_kg(value: float, unit: str) -> float | None:
 
 
 def is_count_unit(unit: str) -> bool:
-    """True for piece/pack count units (ud, unidad, …)."""
+    """
+    This function checks whether we have piece or pack count units.
+    """
     u = unit.lower()
     return u in {"u", "ud", "uds", "unidad", "unidades"}
