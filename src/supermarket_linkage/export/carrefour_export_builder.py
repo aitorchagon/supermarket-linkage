@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any, Optional
-
-from supermarket_linkage.consts import (
-    MERCADONA_PRODUCT_URL_PREFIX,
-    MERCADONA_PRODUCT_URL_TEMPLATE,
+from typing import (
+    Any, 
+    Optional,
+    Mapping,
 )
+
 from supermarket_linkage.export.base_export_builder import BaseExportBuilder
-from supermarket_linkage.schemas.line_result_table import LineResultColumns
 
 
 class CarrefourExportBuilder(BaseExportBuilder):

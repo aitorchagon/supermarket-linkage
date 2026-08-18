@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import threading
 import time
-from collections.abc import Callable
+from typing import Callable
 
 from supermarket_linkage.consts import (
     MAX_CONCURRENT_JOBS_PER_IP,

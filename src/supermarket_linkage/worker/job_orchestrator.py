@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Callable, Sequence
+from typing import Callable, Sequence
 from dataclasses import dataclass
 
 import polars as pl
@@ -45,11 +45,11 @@ class JobTimeoutError(Exception):
 class JobSpec:
     """Validated job payload. ``lines`` only — not the raw paste."""
 
-    lines: tuple[str, ...]
+    lines: Tuple[str, ...]
     store: str
     postal_code: str | None
     is_promo_member: bool
-    warnings: tuple[str, ...] = ()
+    warnings: Tuple[str, ...] = ()
 
 
 class JobOrchestrator:
@@ -130,7 +130,7 @@ class JobOrchestrator:
         spec: JobSpec,
         *,
         deadline: float,
-    ) -> list[dict[str, object]]:
+    ) -> List[dict[str, object]]:
         self._check_deadline(deadline)
         query_norms = [extract_search_query(line) for line in spec.lines]
         unique = list(dict.fromkeys(q for q in query_norms if q))
@@ -148,7 +148,7 @@ class JobOrchestrator:
 
         embedder = self._embedder_provider()
         linkage = LinkageOrchestrator(embedder=embedder, store=spec.store)
-        frames: list[pl.DataFrame] = []
+        frames: List[pl.DataFrame] = []
         for i, (line, q_norm) in enumerate(zip(spec.lines, query_norms, strict=True)):
             self._check_deadline(deadline)
             products = by_query.get(q_norm)
@@ -225,8 +225,8 @@ def _apply_promo(
     policy: PromoPolicy,
 ) -> pl.DataFrame:
     """Set effective pack price and line total from ``PromoPolicy``."""
-    effective: list[float | None] = []
-    totals: list[float | None] = []
+    effective: List[float | None] = []
+    totals: List[float | None] = []
     for row in result.iter_rows(named=True):
         price = policy.effective_price(row, is_promo_member)
         units = row.get(LineResultColumns.UNITS_NEEDED)

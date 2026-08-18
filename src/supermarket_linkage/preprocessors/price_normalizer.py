@@ -89,9 +89,9 @@ class PriceNormalizer(BasePreprocessor):
         """
         enforced = ProductTable.enforce_schema(df)
 
-        measures: list[str | None] = []
-        weights: list[float | None] = []
-        prices_kg: list[float | None] = []
+        measures: List[str | None] = []
+        weights: List[float | None] = []
+        prices_kg: List[float | None] = []
 
         for row in enforced.iter_rows(named=True):
             measure = canonicalize_unit_measure(row[ProductColumns.UNIT_MEASURE])

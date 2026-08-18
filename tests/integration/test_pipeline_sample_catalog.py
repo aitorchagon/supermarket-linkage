@@ -25,10 +25,10 @@ class _TokenOverlapEmbedder:
     def __init__(self) -> None:
         self._vocab: dict[str, int] = {}
 
-    def _tokens(self, text: str) -> list[str]:
+    def _tokens(self, text: str) -> List[str]:
         return [t for t in (text or "").split() if t.isalpha() and t not in _SKIP]
 
-    def embed(self, texts: list[str]):  # noqa: ANN201
+    def embed(self, texts: List[str]):  # noqa: ANN201
         import numpy as np
 
         for text in texts:

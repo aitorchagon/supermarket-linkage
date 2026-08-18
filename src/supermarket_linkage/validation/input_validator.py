@@ -26,8 +26,8 @@ class ValidationResult:
     """
 
     ok: bool
-    lines: list[str] = field(default_factory=list)
-    warnings: list[str] = field(default_factory=list)
+    lines: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
     error: str | None = None
 
 
@@ -58,7 +58,7 @@ class InputValidator:
         cleaned = CONTROL_CHARS.sub("", text)
         cleaned = cleaned.replace("\r\n", "\n").replace("\r", "\n")
 
-        lines: list[str] = []
+        lines: List[str] = []
         for raw_line in cleaned.split("\n"):
             line = raw_line.strip()
             if len(line) < MIN_LINE_LENGTH:
@@ -88,7 +88,7 @@ class InputValidator:
                 error="Duplicate-line spam detected.",
             )
 
-        warnings: list[str] = []
+        warnings: List[str] = []
         if len(lines) > WARN_LINES:
             warnings.append(
                 f"Long list ({len(lines)} lines); processing may take minutes."
@@ -97,7 +97,7 @@ class InputValidator:
         return ValidationResult(ok=True, lines=lines, warnings=warnings)
 
 
-def _duplicate_ratio(lines: list[str]) -> float:
+def _duplicate_ratio(lines: List[str]) -> float:
     """Fraction of lines matching the most common line.
 
     Pre: ``lines`` non-empty.

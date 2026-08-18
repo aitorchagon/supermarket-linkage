@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import time
 import warnings
-from collections.abc import Iterator
+from typing import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import parse_qs
@@ -48,7 +48,7 @@ _ALGOLIA_URL = f"{MERCADONA_ALGOLIA_HOST}{MERCADONA_ALGOLIA_QUERIES_PATH}"
 _FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "sample_catalog.json"
 
 # User-style lines covering the sample catalog (plus a few no-matches).
-LINES_10: tuple[str, ...] = (
+LINES_10: Tuple[str, ...] = (
     "arroz basmati 1500 g",
     "leche entera 1l",
     "huevos camperos",
@@ -61,7 +61,7 @@ LINES_10: tuple[str, ...] = (
     "azucar blanco 1 kg",
 )
 
-LINES_50: tuple[str, ...] = LINES_10 + (
+LINES_50: Tuple[str, ...] = LINES_10 + (
     "arroz redondo 1 kg",
     "arroz integral 1 kg",
     "leche semidesnatada 1l",
@@ -107,7 +107,7 @@ LINES_50: tuple[str, ...] = LINES_10 + (
 _UNIT_TO_FORMAT = {"KILO": "kg", "LITRO": "l", "UNIDAD": "ud"}
 
 
-def percentile(values: list[float], p: float) -> float:
+def percentile(values: List[float], p: float) -> float:
     """Linear interpolation percentile. ``p`` in 0..100."""
     if not values:
         raise ValueError("percentile() on empty sample")
@@ -125,7 +125,7 @@ def percentile(values: list[float], p: float) -> float:
 
 
 def check_p50(
-    samples: list[float],
+    samples: List[float],
     *,
     fail_s: float,
     warn_s: float,
@@ -151,18 +151,18 @@ def check_p50(
     return p50
 
 
-def check_p95(samples: list[float], *, fail_s: float, label: str) -> float:
+def check_p95(samples: List[float], *, fail_s: float, label: str) -> float:
     p95 = percentile(samples, 95)
     if p95 > fail_s:
         pytest.fail(f"{label} p95={p95:.3f}s exceeds {fail_s:.0f}s")
     return p95
 
 
-def paste(lines: tuple[str, ...]) -> str:
+def paste(lines: Tuple[str, ...]) -> str:
     return "\n".join(lines)
 
 
-def run_job(client: TestClient, text: str, *, timeout_s: float = 120.0) -> tuple[float, dict]:
+def run_job(client: TestClient, text: str, *, timeout_s: float = 120.0) -> Tuple[float, dict]:
     """Time POST /jobs until the record is terminal. TestClient runs tasks inline."""
     t0 = time.perf_counter()
     created = client.post(
@@ -194,11 +194,11 @@ def _wait_done(client: TestClient, job_id: str, *, timeout_s: float) -> dict:
     raise AssertionError(f"job {job_id} did not finish; last={last}")
 
 
-def measure_hot_jobs(client: TestClient, text: str, n_hot: int) -> tuple[float, list[float]]:
+def measure_hot_jobs(client: TestClient, text: str, n_hot: int) -> Tuple[float, List[float]]:
     """One untimed warm job, then ``n_hot`` timed jobs. Returns (cold_s, hot_samples)."""
     cold_s, cold_body = run_job(client, text)
     assert cold_body["status"] == "done", cold_body.get("error")
-    hot: list[float] = []
+    hot: List[float] = []
     for _ in range(n_hot):
         elapsed, body = run_job(client, text)
         assert body["status"] == "done", body.get("error")
@@ -266,9 +266,9 @@ def cold_warmup_client() -> Iterator[TestClient]:
         yield client
 
 
-def _sample_hits() -> list[tuple[set[str], dict]]:
+def _sample_hits() -> List[Tuple[Set[str], dict]]:
     rows = json.loads(_FIXTURE.read_text(encoding="utf-8"))
-    out: list[tuple[set[str], dict]] = []
+    out: List[Tuple[Set[str], dict]] = []
     for row in rows:
         name = str(row.get("name") or "")
         tokens = set(normalize_text(name).split())
@@ -300,7 +300,7 @@ def _row_to_hit(row: dict) -> dict:
     }
 
 
-def _make_handler(hits: list[tuple[set[str], dict]]):
+def _make_handler(hits: List[Tuple[Set[str], dict]]):
     def handler(request: httpx.Request) -> httpx.Response:
         url = str(request.url)
         if request.method == "PUT":
@@ -318,7 +318,7 @@ def _make_handler(hits: list[tuple[set[str], dict]]):
     return handler
 
 
-def _hits_for(query: str, catalog: list[tuple[set[str], dict]]) -> list[dict]:
+def _hits_for(query: str, catalog: List[Tuple[Set[str], dict]]) -> List[dict]:
     tokens = [t for t in extract_search_query(query).split() if t]
     if not tokens:
         return []

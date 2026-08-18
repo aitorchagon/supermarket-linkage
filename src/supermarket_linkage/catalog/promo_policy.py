@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
-from typing import Any, Optional
+from typing import (
+    Any, 
+    Optional,
+    Mapping,
+)
 
 from supermarket_linkage.schemas.product_table import ProductColumns
 from supermarket_linkage.catalog.utils import _to_float

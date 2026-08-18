@@ -12,15 +12,14 @@ Warm worker = process up + embedder loaded (DESIGN.md §10).
 from __future__ import annotations
 
 import threading
-from collections.abc import Sequence
-from typing import Literal
+from typing import Literal, Sequence
 
 import numpy as np
 
 from supermarket_linkage.consts import EMBEDDING_MODEL_NAME
 from supermarket_linkage.pipeline.semantic_stage import Embedder
 
-_SKIP_TOKENS: frozenset[str] = frozenset(
+_SKIP_TOKENS: frozenSet[str] = frozenset(
     {"kg", "g", "l", "ml", "cl", "uds", "ud", "x", "pack", "packs"}
 )
 
@@ -113,5 +112,5 @@ def _build_embedder(backend: Backend) -> Embedder:
     return st
 
 
-def _tokens(text: str) -> list[str]:
+def _tokens(text: str) -> List[str]:
     return [t for t in (text or "").split() if t.isalpha() and t not in _SKIP_TOKENS]

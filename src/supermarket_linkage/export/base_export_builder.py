@@ -3,12 +3,13 @@ from __future__ import annotations
 import csv
 import io
 from abc import ABC, abstractmethod
-from collections.abc import Mapping, Sequence
 from typing import (
     Any, 
     Optional,
     Set,
     List,
+    Mapping,
+    Sequence,
 )
 
 from supermarket_linkage.schemas.line_result_table import LineResultColumns
@@ -33,7 +34,7 @@ class BaseExportBuilder(ABC):
         (worker JSON). If there is no match or there is a missing id in the dictionary, we return None
         """
 
-    def product_links(self, rows: Sequence[Mapping[str, Any]]) -> list[str]:
+    def product_links(self, rows: Sequence[Mapping[str, Any]]) -> List[str]:
         """
         This function provides unique product URLs in list order, skipping missing or no_match 
         products. 

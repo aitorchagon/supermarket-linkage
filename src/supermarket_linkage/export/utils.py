@@ -1,6 +1,7 @@
-
-from collections.abc import Mapping
-from typing import Any
+from typing import (
+    Any,
+    Mapping,
+)
 
 from supermarket_linkage.schemas.line_result_table import LineResultColumns
 

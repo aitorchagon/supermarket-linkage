@@ -11,7 +11,7 @@ from supermarket_linkage.preprocessors.price_normalizer import parse_weight_from
 from supermarket_linkage.schemas.line_result_table import LineResultColumns, LineResultTable
 
 
-def units_needed_for(requested_kg: float | None, pack_kg: float | None) -> tuple[int, bool]:
+def units_needed_for(requested_kg: float | None, pack_kg: float | None) -> Tuple[int, bool]:
     """Ceil(requested / pack), minimum 1.
 
     Returns ``(units_needed, pack_size_missing)``.
@@ -44,10 +44,10 @@ class QuantityResolver(BasePreprocessor):
             else pl.Series("approx_weight_kg", [None] * df.height)
         )
 
-        units_list: list[int] = []
-        pack_list: list[float | None] = []
-        missing_list: list[bool] = []
-        total_list: list[float | None] = []
+        units_list: List[int] = []
+        pack_list: List[float | None] = []
+        missing_list: List[bool] = []
+        total_list: List[float | None] = []
 
         for i, row in enumerate(base.iter_rows(named=True)):
             requested = row[LineResultColumns.REQUESTED_AMOUNT_KG]

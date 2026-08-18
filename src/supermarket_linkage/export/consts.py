@@ -3,7 +3,7 @@ from supermarket_linkage.schemas.line_result_table import LineResultColumns
 
 STATUS_NO_MATCH = "no_match"
 
-CSV_COLUMNS: tuple[str, ...] = (
+CSV_COLUMNS: Tuple[str, ...] = (
     LineResultColumns.QUERY,
     LineResultColumns.STATUS,
     LineResultColumns.PRODUCT_ID,

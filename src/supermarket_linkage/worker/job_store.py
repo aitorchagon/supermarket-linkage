@@ -13,9 +13,8 @@ from __future__ import annotations
 import threading
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Callable
 from dataclasses import dataclass, field, replace
-from typing import Any
+from typing import Any, Callable
 
 from supermarket_linkage.consts import JOB_TTL_SECONDS
 
@@ -49,8 +48,8 @@ class JobRecord:
     progress: JobProgress
     created_at: float = 0.0
     updated_at: float = 0.0
-    warnings: list[str] = field(default_factory=list)
-    results: list[dict[str, Any]] | None = None
+    warnings: List[str] = field(default_factory=list)
+    results: List[dict[str, Any]] | None = None
     error: str | None = None
 
 
@@ -72,8 +71,8 @@ class JobStore(ABC):
         *,
         status: str | None = None,
         progress: JobProgress | None = None,
-        warnings: list[str] | None = None,
-        results: list[dict[str, Any]] | None = None,
+        warnings: List[str] | None = None,
+        results: List[dict[str, Any]] | None = None,
         error: str | None = None,
     ) -> JobRecord | None:
         """Patch fields on an existing job. None if missing/expired."""
@@ -118,8 +117,8 @@ class InMemoryJobStore(JobStore):
         *,
         status: str | None = None,
         progress: JobProgress | None = None,
-        warnings: list[str] | None = None,
-        results: list[dict[str, Any]] | None = None,
+        warnings: List[str] | None = None,
+        results: List[dict[str, Any]] | None = None,
         error: str | None = None,
     ) -> JobRecord | None:
         with self._lock:

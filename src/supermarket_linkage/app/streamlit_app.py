@@ -139,7 +139,7 @@ def _worker_status_fragment(client: WorkerClient, worker_url: str) -> None:
         st.rerun(scope="app")
 
 
-def _render_results(rows: list[dict[str, Any]]) -> None:
+def _render_results(rows: List[dict[str, Any]]) -> None:
     st.subheader("Resultados")
     display = [{col: row.get(col) for col in _RESULT_COLUMNS} for row in rows]
     column_config: dict[str, Any] = {}

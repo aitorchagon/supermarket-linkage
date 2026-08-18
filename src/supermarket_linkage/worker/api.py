@@ -12,11 +12,19 @@ from __future__ import annotations
 import hmac
 import logging
 import uuid
-from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import (
+    Any,
+    AsyncIterator,
+)
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
+from fastapi import (
+    BackgroundTasks, 
+    Depends, 
+    FastAPI, 
+    HTTPException, 
+    Request,
+)
 from pydantic import BaseModel, Field
 
 from supermarket_linkage.catalog.base_catalog_client import BaseCatalogClient
@@ -61,15 +69,15 @@ class JobCreateResponse(BaseModel):
     id: str
     status: str
     progress: ProgressBody
-    warnings: list[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
 
 
 class JobGetResponse(BaseModel):
     id: str
     status: str
     progress: ProgressBody
-    warnings: list[str] = Field(default_factory=list)
-    results: list[dict[str, Any]] | None = None
+    warnings: List[str] = Field(default_factory=list)
+    results: List[dict[str, Any]] | None = None
     error: str | None = None
 
 

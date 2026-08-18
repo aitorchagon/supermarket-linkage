@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Sequence
+from typing import Sequence
 from pathlib import Path
 
 import polars as pl
@@ -49,7 +49,7 @@ class SampleCatalogClient(BaseCatalogClient):
     def __init__(self, path: str | Path | None = None) -> None:
         resolved = Path(path) if path else None
         self._catalog = load_sample_catalog(resolved)
-        self._name_tokens: list[set[str]] = [
+        self._name_tokens: List[Set[str]] = [
             set(normalize_text(name or "").split())
             for name in self._catalog[ProductColumns.NAME].to_list()
         ]
@@ -70,7 +70,7 @@ class SampleCatalogClient(BaseCatalogClient):
         Post: ProductTable rows; ``source_query`` is ``extract_search_query(q)``.
         """
         del postal_code
-        frames: list[pl.DataFrame] = []
+        frames: List[pl.DataFrame] = []
         for raw in queries:
             if not raw or not str(raw).strip():
                 continue

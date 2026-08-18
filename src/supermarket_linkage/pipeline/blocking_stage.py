@@ -14,7 +14,7 @@ class BlockingStage(BaseStage):
     whose source query matches the line query_norm.
     """
 
-    def process(self, df: pl.DataFrame) -> pl.DataFrame:
+    def _process(self, df: pl.DataFrame) -> pl.DataFrame:
         """
         This function allows to filter to a current query's search block. We have
         source_query and query_norm columns and, as a result, we only have the rows that correspond to the same 

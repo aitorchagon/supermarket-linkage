@@ -5,14 +5,14 @@ Mercadona catalog client: Algolia search (to retrieve data) + postal→warehouse
 from __future__ import annotations
 
 import time
-from collections.abc import Mapping, Sequence
 from typing import (
     Any, 
     Self, 
     Optional,
     Tuple,
     Dict,
-    List,
+    Mapping,
+    Sequence,
 )
 from urllib.parse import urlencode
 
@@ -232,7 +232,7 @@ class MercadonaCatalogClient(BaseCatalogClient):
 
         warehouse = self.resolve_warehouse(postal_code)
         index = get_algolia_index(warehouse)
-        frames: list[pl.DataFrame] = []
+        frames: List[pl.DataFrame] = []
         for start in range(0, len(cleaned), MERCADONA_SEARCH_BATCH_SIZE):
             chunk = cleaned[start : start + MERCADONA_SEARCH_BATCH_SIZE]
             payload = {

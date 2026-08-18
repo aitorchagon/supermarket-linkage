@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any, Optional
+from typing import (
+    Any, 
+    Optional,
+    Mapping,
+)
 
 from supermarket_linkage.consts import (
     MERCADONA_PRODUCT_URL_PREFIX,

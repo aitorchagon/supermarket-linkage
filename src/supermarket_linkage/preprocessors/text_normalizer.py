@@ -11,7 +11,7 @@ from supermarket_linkage.preprocessors.units import is_count_unit, parse_numeric
 from supermarket_linkage.regex_consts import NON_WORD, QUANTITY
 
 # Spanish grocery noise; quantity tokens are stripped via QUANTITY separately.
-STOPWORDS: frozenset[str] = frozenset(
+STOPWORDS: frozenSet[str] = frozenset(
     {
         "a",
         "al",

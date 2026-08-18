@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import Optional
+from typing import Optional, Sequence
 
 import polars as pl
 

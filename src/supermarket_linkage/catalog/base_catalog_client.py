@@ -4,9 +4,8 @@ Abstract catalog client: search terms → ProductTable rows.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Sequence
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
 
 import polars as pl
 

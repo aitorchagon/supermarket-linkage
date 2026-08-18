@@ -4,12 +4,12 @@ import polars as pl
 import polars_distance as pld
 
 from supermarket_linkage.consts import JW_MAX_DISTANCE
-from supermarket_linkage.pipeline.df_stage import dfStage
+from supermarket_linkage.pipeline.base_stage import BaseStage
 from supermarket_linkage.preprocessors.text_normalizer import normalize_text
 from supermarket_linkage.schemas.candidate_table import CandidateColumns, CandidateTable
 
 
-class DistanceStage(dfStage):
+class DistanceStage(BaseStage):
     """
     This stage is in charge of keeping the candidates that have a Jaro-Winkler distance
     lower than JW_MAX_DISTANCE.
@@ -18,7 +18,7 @@ class DistanceStage(dfStage):
     def __init__(self, max_distance: float = JW_MAX_DISTANCE) -> None:
         self.max_distance = max_distance
 
-    def process(self, df: pl.DataFrame) -> pl.DataFrame:
+    def _process(self, df: pl.DataFrame) -> pl.DataFrame:
         """
         Here, we compute the Jaro-Winkler similarity and perform a filter.
         
@@ -34,13 +34,7 @@ class DistanceStage(dfStage):
         if df.height == 0:
             return CandidateTable.enforce_schema(df)
 
-        if CandidateColumns.QUERY_NORM not in df.columns:
-            raise ValueError("DistanceStage requires 'query_norm'.")
-
         if CandidateColumns.NAME_NORM not in df.columns:
-            if CandidateColumns.NAME not in df.columns:
-                raise ValueError("DistanceStage requires 'name_norm' or 'name'.")
-            
             normalized = [normalize_text(n or "") for n in df[CandidateColumns.NAME].to_list()]
             df = df.with_columns(
                 pl.Series(CandidateColumns.NAME_NORM, normalized, dtype=pl.String)

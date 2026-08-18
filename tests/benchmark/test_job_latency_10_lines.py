@@ -54,7 +54,7 @@ def test_hot_10_line_job_p50_mocked_http(mocked_http_client: TestClient) -> None
 
 def test_cold_warmup_sample_backend() -> None:
     """POST /warmup with TokenOverlap (not MiniLM). Plan SLO is 90s p95 for real load."""
-    samples: list[float] = []
+    samples: List[float] = []
     for _ in range(3):
         with cold_warmup_client() as client:
             assert client.get("/health").json()["warm"] is False
