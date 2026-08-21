@@ -1,7 +1,5 @@
-from supermarket_linkage.catalog.carrefour_client import CarrefourCatalogClient
-from supermarket_linkage.catalog.dia_client import DiaCatalogClient
-from supermarket_linkage.catalog.mercadona_client import MercadonaCatalogClient
-from supermarket_linkage.catalog.base_catalog_client import BaseCatalogClient
+"""Catalog-layer constants (URLs, headers, stub messages). No client imports."""
+
 from supermarket_linkage.consts import (
     MERCADONA_ALGOLIA_API_KEY,
     MERCADONA_ALGOLIA_APP_ID,
@@ -13,12 +11,6 @@ from supermarket_linkage.consts import (
 
 CARREFOUR_NOT_IMPLEMENTED_MESSAGE = "Carrefour catalog client is not implemented in v1."
 DIA_NOT_IMPLEMENTED_MESSAGE = "DIA catalog client is not implemented in v1."
-
-_CLIENTS: dict[str, type[BaseCatalogClient]] = {
-    "mercadona": MercadonaCatalogClient,
-    "dia": DiaCatalogClient,
-    "carrefour": CarrefourCatalogClient,
-}
 
 _ALGOLIA_URL = f"{MERCADONA_ALGOLIA_HOST}{MERCADONA_ALGOLIA_QUERIES_PATH}"
 _POSTAL_URL = f"{MERCADONA_API_BASE}{MERCADONA_POSTAL_CHANGE_PATH}"

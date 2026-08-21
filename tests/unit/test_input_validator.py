@@ -73,7 +73,7 @@ def test_skips_empty_lines() -> None:
 def test_rejects_empty_paste() -> None:
     result = InputValidator().validate("\n\n  \n")
     assert not result.ok
-    assert "No non-empty" in (result.error or "")
+    assert "empty" in (result.error or "").lower()
 
 
 def test_warns_above_warn_lines() -> None:

@@ -1,3 +1,5 @@
+from typing import Tuple
+
 from supermarket_linkage.schemas.line_result_table import LineResultColumns
 
 

@@ -13,11 +13,7 @@ from typing import (
 import polars as pl
 
 from supermarket_linkage.preprocessors.base_preprocessor import BasePreprocessor
-from supermarket_linkage.preprocessors.consts import (
-    is_count_unit, 
-    _to_float, 
-    to_kg,
-)
+from supermarket_linkage.preprocessors.consts import _to_float, is_count_unit, to_kg
 from supermarket_linkage.regex_consts import NON_WORD, QUANTITY
 
 # Spanish grocery stopwords (hard-coded); the ones referring to quantity are stripped via

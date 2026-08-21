@@ -9,7 +9,7 @@ from supermarket_linkage.schemas.candidate_table import CandidateColumns, Candid
 
 def heuristic_pass(query_norm: str | None, name_norm: str | None) -> bool:
     """
-    This function performs an exact match for each candidate.
+    Exact normalized match, or all query tokens ⊆ name tokens.
     """
     query_normalized = (query_norm or "").strip()
     name_normalized = (name_norm or "").strip()
@@ -25,7 +25,7 @@ def heuristic_pass(query_norm: str | None, name_norm: str | None) -> bool:
 class HeuristicStage(BaseStage):
     """Keep rows that pass exact-normalized or token-subset heuristic."""
 
-    def process(self, df: pl.DataFrame) -> pl.DataFrame:
+    def _process(self, df: pl.DataFrame) -> pl.DataFrame:
         """Set ``heuristic_pass`` and keep only True rows.
 
         Pre: ``query_norm`` plus ``name`` and/or ``name_norm``.
@@ -33,23 +33,28 @@ class HeuristicStage(BaseStage):
         """
         if df.height == 0:
             return CandidateTable.enforce_schema(df)
-        
+
         if CandidateColumns.NAME in df.columns:
-            existing = (
-                df[CandidateColumns.NAME_NORM].to_list()
-                if CandidateColumns.NAME_NORM in df.columns
-                else [None] * df.height
+            if CandidateColumns.NAME_NORM in df.columns:
+                norms = [
+                    (nn if nn else normalize_text(name or ""))
+                    for nn, name in zip(
+                        df[CandidateColumns.NAME_NORM].to_list(),
+                        df[CandidateColumns.NAME].to_list(),
+                        strict=True,
+                    )
+                ]
+            else:
+                norms = [
+                    normalize_text(name or "")
+                    for name in df[CandidateColumns.NAME].to_list()
+                ]
+            df = df.with_columns(
+                pl.Series(CandidateColumns.NAME_NORM, norms, dtype=pl.String)
             )
-            names = df[CandidateColumns.NAME].to_list()
-            norms = [
-                (nn if nn else normalize_text(name or ""))
-                for nn, name in zip(existing, names, strict=True)
-            ]
-            return df.with_columns(pl.Series(CandidateColumns.NAME_NORM, norms, dtype=pl.String))
-        
-        if CandidateColumns.NAME_NORM in df.columns:
-            return df
-        
+        elif CandidateColumns.NAME_NORM not in df.columns:
+            raise ValueError("HeuristicStage requires 'name' or 'name_norm'.")
+
         flags = [
             heuristic_pass(query_norm=query_normalized, name_norm=name_normalized)
             for query_normalized, name_normalized in zip(

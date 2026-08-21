@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 from typing import (
-    Sequence, 
-    Optional,
     List,
+    Optional,
+    Sequence,
 )
 
 import polars as pl
 
 from supermarket_linkage.pipeline.base_stage import BaseStage
 from supermarket_linkage.pipeline.blocking_stage import BlockingStage
+from supermarket_linkage.pipeline.consts import MATCH_STAGE_DISTANCE, STATUS_MATCHED, STATUS_NO_MATCH
 from supermarket_linkage.pipeline.distance_stage import DistanceStage
 from supermarket_linkage.pipeline.heuristic_stage import HeuristicStage
 from supermarket_linkage.pipeline.semantic_stage import Embedder, SemanticStage
@@ -22,20 +23,14 @@ from supermarket_linkage.preprocessors.text_normalizer import (
 from supermarket_linkage.schemas.candidate_table import CandidateColumns, CandidateTable
 from supermarket_linkage.schemas.line_result_table import LineResultColumns, LineResultTable
 from supermarket_linkage.schemas.product_table import ProductColumns, ProductTable
-from supermarket_linkage.pipeline.consts import (
-    STATUS_MATCHED,
-    STATUS_NO_MATCH,
-    MATCH_STAGE_DISTANCE
-)
 
 
 def select_winner(survivors: pl.DataFrame) -> pl.DataFrame:
     """
-    This function allows to select the winner. We have two different branches:
-    - lowest price per kilogram, then highest Jaro-Winkler distance
-    - Highest Jaro-Winkler distance, in case we do not have price per kilogram.
-    
-    We have the survivors from stage 4 and we return the winner.
+    Pick one winner among stage-4 survivors.
+
+    Branch A (any priced ``price_per_kg``): lowest price/kg, then highest JW similarity.
+    Branch B (all null): highest JW similarity.
     """
     if survivors.height == 0:
         return survivors
@@ -56,48 +51,47 @@ def products_to_candidates(
     query_norm: Optional[str] = None,
 ) -> pl.DataFrame:
     """
-    This function allows to build CandidateTable rows from ProductTable search hits, that is, we are converting,
-    following our own schemas, product rows to candidate rows.
+    Build CandidateTable rows from ProductTable search hits.
     """
     query_norm = query_norm if query_norm is not None else extract_search_query(query)
     product_height = products.height
     if product_height == 0:
-        empty = CandidateTable.as_empty_dataframe()
-        return empty
+        return CandidateTable.as_empty_dataframe()
 
-    names = products[ProductColumns.NAME].to_list() if ProductColumns.NAME in products.columns else [None] * product_height
-    name_norms = [normalize_text(normalized_name or "") for normalized_name in names]
-
-    # Carry product columns; fill query fields.
-    base = products
-    extras = {
-        CandidateColumns.NAME_NORM: name_norms,
-        CandidateColumns.QUERY: [query] * product_height,
-        CandidateColumns.QUERY_NORM: [query_norm] * product_height,
-        CandidateColumns.HEURISTIC_PASS: [False] * product_height,
-        CandidateColumns.SEMANTIC_SCORE: [None] * product_height,
-        CandidateColumns.JW_SIMILARITY: [None] * product_height,
-        CandidateColumns.JW_DISTANCE: [None] * product_height,
-    }
-    # Drop if already present to avoid duplicate columns.
-    drop = [column for column  in extras if column in base.columns]
-    if drop:
-        base = base.drop(drop)
+    drop = [
+        col
+        for col in (
+            CandidateColumns.NAME_NORM,
+            CandidateColumns.QUERY,
+            CandidateColumns.QUERY_NORM,
+            CandidateColumns.HEURISTIC_PASS,
+            CandidateColumns.SEMANTIC_SCORE,
+            CandidateColumns.JW_SIMILARITY,
+            CandidateColumns.JW_DISTANCE,
+        )
+        if col in products.columns
+    ]
+    base = products.drop(drop) if drop else products
     out = base.with_columns(
-        [pl.Series(column, values) for column, values in extras.items()]
+        [
+            pl.col(ProductColumns.NAME)
+            .fill_null("")
+            .map_elements(normalize_text, return_dtype=pl.String)
+            .alias(CandidateColumns.NAME_NORM),
+            pl.lit(query).alias(CandidateColumns.QUERY),
+            pl.lit(query_norm).alias(CandidateColumns.QUERY_NORM),
+            pl.lit(False).alias(CandidateColumns.HEURISTIC_PASS),
+            pl.lit(None, dtype=pl.Float64).alias(CandidateColumns.SEMANTIC_SCORE),
+            pl.lit(None, dtype=pl.Float64).alias(CandidateColumns.JW_SIMILARITY),
+            pl.lit(None, dtype=pl.Float64).alias(CandidateColumns.JW_DISTANCE),
+        ]
     )
     return CandidateTable.enforce_schema(out)
 
 
 class LinkageOrchestrator:
     """
-    This orchestrator manages a linkage pipeline. This pipeline has the following stages:
-    - Heuristic stage.
-    - Blocking stage.
-    - Semantic stage.
-    - Distance stage.
-    - Determine the winner.
-    - Resolve quantities.
+    Linkage pipeline: heuristic → blocking → semantic → distance → winner → quantity.
     """
 
     def __init__(
@@ -121,10 +115,7 @@ class LinkageOrchestrator:
             ]
 
     def run_stages(self, candidates: pl.DataFrame) -> pl.DataFrame:
-        """
-        This function applies the stage chain and returns the final survivors, which may or may not be 
-        empty
-        """
+        """Apply the stage chain; may return an empty CandidateTable."""
         current = CandidateTable.enforce_schema(candidates)
         for stage in self.stages:
             current = stage.process(current)
@@ -143,9 +134,10 @@ class LinkageOrchestrator:
         effective_price_col: str = ProductColumns.PRICE_EUR,
     ) -> pl.DataFrame:
         """
-        This function allows to link a one shopping-list line to a catalog hit.
-        Products are search hits for this line with the ProductTable schema and the output is a LineResultTable,
-        with a single row, with quantity fields, that contains whether we have a match or not.
+        Link one shopping-list line to catalog hits.
+
+        Pre: ``products`` is ProductTable-shaped for this line.
+        Post: one-row LineResultTable (``matched`` or ``no_match``) with quantity fields.
         """
         query_norm = query_norm if query_norm is not None else extract_search_query(query)
         if requested_amount_kg is None:
@@ -171,7 +163,6 @@ class LinkageOrchestrator:
         row = winner.row(0, named=True)
         price = row.get(CandidateColumns.PRICE_EUR)
         promo = row.get(CandidateColumns.PROMO_PRICE_EUR)
-        # Prefer explicit effective from product frame if present on winner.
         effective = row.get(effective_price_col, price)
         if effective is None:
             effective = price
@@ -207,9 +198,10 @@ class LinkageOrchestrator:
         products_by_query_norm: dict[str, pl.DataFrame],
     ) -> pl.DataFrame:
         """
-        This function allows to link many shopping-lists lines to many catalog hits.
-        Products are search hits for this line with the ProductTable schema and the output is a LineResultTable,
-        with a single row, with quantity fields, that contains whether we have a match or not.
+        Link many shopping-list lines.
+
+        Pre: ``lines`` has a ``query`` column; map is ProductTable frames by query_norm.
+        Post: LineResultTable with one row per input line.
         """
         if "query" not in lines.columns:
             raise ValueError("link_lines requires a 'query' column.")

@@ -6,13 +6,14 @@ from __future__ import annotations
 
 import time
 from typing import (
-    Any, 
-    Self, 
-    Optional,
-    Tuple,
+    Any,
     Dict,
+    List,
     Mapping,
+    Optional,
+    Self,
     Sequence,
+    Tuple,
 )
 from urllib.parse import urlencode
 
@@ -47,6 +48,17 @@ from supermarket_linkage.catalog.utils import (
     _to_float,
     sanitize_warehouse,
 )
+
+# Re-export for tests / callers that import from this module.
+__all__ = [
+    "MercadonaCatalogClient",
+    "get_algolia_index",
+    "hits_to_product_table",
+    "index_name_for",
+    "parse_hit",
+    "parse_product_detail",
+    "sanitize_warehouse",
+]
 
 def _unit_measure(price_instructions: Mapping[str, Any]) -> Optional[str]:
     """
@@ -88,10 +100,14 @@ def _get_prices(
 
 def get_algolia_index(warehouse: str) -> str:
     """
-    This function is a getter for the Algolia index, using a sanitized warehouse for Mercadona. 
+    Algolia index name for a sanitized Mercadona warehouse.
     """
     safe = sanitize_warehouse(warehouse) or DEFAULT_WAREHOUSE
     return MERCADONA_INDEX_TEMPLATE.format(warehouse=safe)
+
+
+# Alias kept for tests / older call sites.
+index_name_for = get_algolia_index
 
 
 def _product_url(hit: Mapping[str, Any], product_id: str) -> str:
@@ -118,16 +134,16 @@ def _display_name(hit: Mapping[str, Any]) -> str:
 
 def parse_hit(hit: Mapping[str, Any], source_query: str) -> Dict[str, Any]:
     """
-    This function allows to parse Algolia hits (one) or JSON objects to a ProductTable row.
+    Parse one Algolia hit (or product-detail JSON) into a ProductTable row dict.
 
     Arguments
     ---------
-    hit: This is a dictionary that map a string (hit) to a product (undefined type).
-    source_query: This is the source query that was used.
+    hit: Mapping from Algolia / detail payload.
+    source_query: Query that produced this hit.
 
     Returns
-    --------
-    A dictionary that contains all the data in a ProductTable format.
+    -------
+    ProductTable-shaped dictionary.
     """
     product_id = str(hit.get("id") or hit.get("objectID") or "")
     price_instructions = hit.get("price_instructions") or {}
@@ -149,6 +165,12 @@ def parse_hit(hit: Mapping[str, Any], source_query: str) -> Dict[str, Any]:
         ProductColumns.SOURCE_QUERY: source_query,
         ProductColumns.URL: _product_url(hit=hit, product_id=product_id) if product_id else None,
     }
+
+
+def parse_product_detail(detail: Mapping[str, Any], source_query: str) -> Dict[str, Any]:
+    """Parse a Mercadona product-detail JSON object (same fields as an Algolia hit)."""
+    return parse_hit(detail, source_query)
+
 
 def hits_to_product_table(
     hits: Sequence[Mapping[str, Any]],
@@ -206,27 +228,32 @@ class MercadonaCatalogClient(BaseCatalogClient):
     def __exit__(self, *args: object) -> None:
         self.close()
 
+    def search(self, query: str, *, postal_code: Optional[str] = None) -> pl.DataFrame:
+        """
+        Search one query via Algolia (delegates to ``search_batch``).
+        """
+        return self.search_batch([query], postal_code=postal_code)
+
     def search_batch(
         self,
-        query: str,
+        queries: Sequence[str],
         *,
         postal_code: Optional[str] = None,
     ) -> pl.DataFrame:
         """
-        This function allows to search a batch of products. To do that, it 
-        performs a POST Algolia multi-query in chunks of ``MERCADONA_SEARCH_BATCH_SIZE``.
+        Search many queries with Algolia multi-query in chunks of
+        ``MERCADONA_SEARCH_BATCH_SIZE``.
 
         Arguments
-        --------
-        queries: It is a list of search strings, where empty ones are skipped.
-        postal_code: It may or may not be included, allows to search in particular stores.
+        ---------
+        queries: Search strings; empty ones are skipped.
+        postal_code: Optional postal code to resolve warehouse.
 
         Returns
         -------
-        A concatenated ProductTable where each source_query matches each input query.
+        Concatenated ProductTable; each row's ``source_query`` matches its input query.
         """
-        queries = [query]
-        cleaned = [q for q in queries if q and q.strip()]
+        cleaned = [q for q in queries if q and str(q).strip()]
         if not cleaned:
             return ProductTable.as_empty_dataframe()
 
@@ -246,13 +273,15 @@ class MercadonaCatalogClient(BaseCatalogClient):
                     for q in chunk
                 ]
             }
-            response = self._request("POST", _ALGOLIA_URL, headers=_ALGOLIA_HEADERS, json=payload)
+            response = self._request(
+                "POST", _ALGOLIA_URL, headers=_ALGOLIA_HEADERS, json=payload
+            )
             response.raise_for_status()
             body = response.json()
             results = body.get("results") or []
-            for query, result in zip(chunk, results, strict=False):
+            for q, result in zip(chunk, results, strict=False):
                 hits = result.get("hits") or [] if isinstance(result, Mapping) else []
-                frames.append(hits_to_product_table(hits, query))
+                frames.append(hits_to_product_table(hits, q))
 
         if not frames:
             return ProductTable.as_empty_dataframe()

@@ -7,22 +7,23 @@ from contextlib import asynccontextmanager
 from typing import (
     Any,
     AsyncGenerator,
+    Dict,
     List,
     Optional,
-    Dict,
 )
 
 from fastapi import (
-    BackgroundTasks, 
-    Depends, 
-    FastAPI, 
-    HTTPException, 
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    HTTPException,
     Request,
 )
 from pydantic import BaseModel, Field
 
 from supermarket_linkage.catalog.base_catalog_client import BaseCatalogClient
 from supermarket_linkage.validation.input_validator import is_valid_postal_code
+from supermarket_linkage.worker.consts import API_KEY_HEADERS
 from supermarket_linkage.worker.job_orchestrator import (
     JobOrchestrator,
     JobSpec,
@@ -35,13 +36,14 @@ from supermarket_linkage.worker.job_store import (
     JobRecord,
     JobStore,
 )
+from supermarket_linkage.worker.logging_config import configure_logging
 from supermarket_linkage.worker.rate_limiter import RateLimiter
 from supermarket_linkage.worker.sample_catalog import SampleCatalogClient
 from supermarket_linkage.worker.settings import WorkerSettings
 from supermarket_linkage.worker.warmup import ModelRegistry
-from supermarket_linkage.worker.consts import API_KEY_HEADERS
 
 log = logging.getLogger(__name__)
+
 
 class JobCreateBody(BaseModel):
     text: str
@@ -70,6 +72,9 @@ class JobGetResponse(BaseModel):
     warnings: List[str] = Field(default_factory=list)
     results: Optional[List[Dict[str, Any]]] = None
     error: Optional[str] = None
+    matched_count: Optional[int] = None
+    no_match_count: Optional[int] = None
+    unmatched_queries: Optional[List[str]] = None
 
 
 def create_app(
@@ -81,9 +86,11 @@ def create_app(
     catalog_client: Optional[BaseCatalogClient] = None,
 ) -> FastAPI:
     """
-    This function allows to build the worker app. 
-    The tests inject store / limiter / registry / catalog.
+    Build the worker FastAPI app.
+
+    Tests inject store / limiter / registry / catalog as needed.
     """
+    configure_logging()
     worker_settings = settings or WorkerSettings.from_env()
     store = job_store or InMemoryJobStore(ttl_s=worker_settings.job_ttl_s)
     limiter = rate_limiter or RateLimiter()
@@ -102,15 +109,12 @@ def create_app(
         sample_catalog_path=worker_settings.sample_catalog_path,
         job_timeout_s=worker_settings.job_timeout_s,
     )
-    # so we can guarantee that resources are initialized when we start
-    # and are libreated when we get out without blocking the event loop
-    # equivalent to async with, but using functions (async def plus the decorator)
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
         """
-        This function allows to check whether we have preloaded our embedder or we have to lazy-load it
-        to warm up the processes. Especially useful at the beginning, or if there has been a while since a user has not
-        used the platform.
+        Preload the embedder on startup when not skipped; failures fall back to
+        lazy-load on warmup/job.
         """
         if not worker_settings.skip_model_preload:
             try:
@@ -128,10 +132,7 @@ def create_app(
     app.state.orchestrator = orch
 
     def require_api_key(request: Request) -> None:
-        """
-        This function requires an API key to the supermarket API and raises
-        an Exception if it is not provided.
-        """
+        """Require API key when configured; raise 401 if missing or wrong."""
         expected = request.app.state.settings.api_key
         if not expected:
             return
@@ -144,9 +145,9 @@ def create_app(
             raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
     def client_ip(request: Request) -> str:
-        # We do not trust X-Forwarded-For to avoid a person to overpass the number of 
-        # petitions per IP that we have establisched. We do not read the metadata from the petition but the IP.
-        # If the socket information is not provided, we return 'unknown'.
+        """
+        Return the direct peer IP. Do not trust X-Forwarded-For (spoof bypass).
+        """
         if request.client and request.client.host:
             return request.client.host
         return "unknown"
@@ -154,8 +155,8 @@ def create_app(
     @app.get("/health")
     def health(request: Request) -> Dict[str, Any]:
         """
-        This function returns whether the model is warmup, whether we are in test mode (use_sample_catalog) for offline
-        tests and the status (by default ok).
+        Liveness probe: process is up. ``status`` is always ok when reachable;
+        readiness for matching is ``warm``.
         """
         reg: ModelRegistry = request.app.state.model_registry
         st: WorkerSettings = request.app.state.settings
@@ -167,9 +168,7 @@ def create_app(
 
     @app.post("/warmup", dependencies=[Depends(require_api_key)])
     def warmup(request: Request) -> Dict[str, Any]:
-        """
-        This function allows to perform the operation of warmup, and start the job if the model is not warm.
-        """
+        """Preload the embedding model; rate-limited per IP."""
         ip = client_ip(request)
         limiter_inst: RateLimiter = request.app.state.rate_limiter
         if not limiter_inst.allow_warmup(ip):
@@ -189,7 +188,8 @@ def create_app(
         background_tasks: BackgroundTasks,
     ) -> JobCreateResponse:
         """
-        This function allows to create the job to warm up the model.
+        Validate input, enqueue a linkage job, and return its id for polling.
+        Does not log ``body.text``.
         """
         orch_inst: JobOrchestrator = request.app.state.orchestrator
         limiter_inst: RateLimiter = request.app.state.rate_limiter
@@ -205,12 +205,11 @@ def create_app(
         if postal is not None and not is_valid_postal_code(postal):
             raise HTTPException(status_code=400, detail="Invalid postal code.")
 
-        # Validate before taking a rate-limit slot. Do not log body.text.
         validated = orch_inst.validate_text(body.text)
         if not validated.ok:
             raise HTTPException(status_code=400, detail=validated.error or "Invalid input.")
 
-        if not limiter_inst.allow_and_acquire_job(ip):
+        if not limiter_inst.consume_job(ip):
             raise HTTPException(status_code=429, detail="Job rate limit exceeded")
 
         job_id = uuid.uuid4().hex
@@ -251,10 +250,7 @@ def create_app(
 
     @app.get("/jobs/{job_id}", dependencies=[Depends(require_api_key)])
     def get_job(job_id: str, request: Request) -> JobGetResponse:
-        """
-        This function allows to get the job information to check the progress, whether it 
-        has failed or whether it has finished.
-        """
+        """Return job progress, results (including no_match rows), and summary counts."""
         store_inst: JobStore = request.app.state.job_store
         job = store_inst.get(job_id)
         if job is None:
@@ -270,6 +266,9 @@ def create_app(
             warnings=job.warnings,
             results=job.results,
             error=job.error,
+            matched_count=job.matched_count,
+            no_match_count=job.no_match_count,
+            unmatched_queries=job.unmatched_queries,
         )
 
     return app

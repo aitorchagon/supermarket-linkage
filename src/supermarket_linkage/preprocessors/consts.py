@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from typing import Dict, Optional
 
 MEASURE_KILO = "KILO"
@@ -21,8 +22,7 @@ _MEASURE_ALIASES: Dict[str, str] = {
     "u": MEASURE_UNIDAD,
 }
 
-# The heuristic is that density is 1 for all the products, so one liter is one kg
-# for ranking exclusively (we do not take into account physics, it is not necessary)
+# Density ≈ 1 for ranking: 1 L treated as 1 kg (not physics, just price/kg).
 _TO_KG: Dict[str, float] = {
     "kg": 1.0,
     "kilo": 1.0,
@@ -41,8 +41,7 @@ _TO_KG: Dict[str, float] = {
 
 def to_kg(value: float, unit: str) -> Optional[float]:
     """
-    This function converts mass or volume to a kilogram equivalent, and returns None
-    for unknown or unit counts.
+    Convert mass or volume to a kilogram equivalent. None for unknown / count units.
     """
     factor = _TO_KG.get(unit.lower())
     if factor is None:
@@ -51,8 +50,25 @@ def to_kg(value: float, unit: str) -> Optional[float]:
 
 
 def is_count_unit(unit: str) -> bool:
-    """
-    This function checks whether we have piece or pack count units.
-    """
+    """True for piece / pack count units (ud, unidad, …)."""
     u = unit.lower()
     return u in {"u", "ud", "uds", "unidad", "unidades"}
+
+
+def _to_float(value: object = None, *, raw: object | None = None) -> Optional[float]:
+    """
+    Coerce catalog / paste values to float. None for empty, bool, or unparsable.
+
+    Accepts positional ``value`` or keyword ``raw`` (call-site alias).
+    """
+    data = raw if raw is not None else value
+    if data is None or data == "":
+        return None
+    if isinstance(data, bool):
+        return None
+    if isinstance(data, (int, float)):
+        return float(data)
+    try:
+        return float(str(data).replace(",", "."))
+    except (TypeError, ValueError):
+        return None

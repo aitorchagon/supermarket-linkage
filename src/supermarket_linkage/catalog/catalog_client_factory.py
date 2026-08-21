@@ -1,14 +1,16 @@
-"""Store → catalog client. It only works for Mercadona, DIA and Carrefour still not implemented."""
+"""Store → catalog client. Mercadona enabled; DIA / Carrefour stubbed."""
 
-from supermarket_linkage.consts import (
-    COMING_SOON_STORES, 
-    SUPPORTED_STORES,
-)
-from supermarket_linkage.catalog.consts import (
-    _CLIENTS,
-)
 from supermarket_linkage.catalog.base_catalog_client import BaseCatalogClient
+from supermarket_linkage.catalog.carrefour_client import CarrefourCatalogClient
+from supermarket_linkage.catalog.dia_client import DiaCatalogClient
+from supermarket_linkage.catalog.mercadona_client import MercadonaCatalogClient
+from supermarket_linkage.consts import COMING_SOON_STORES, SUPPORTED_STORES
 
+_CLIENTS: dict[str, type[BaseCatalogClient]] = {
+    "mercadona": MercadonaCatalogClient,
+    "dia": DiaCatalogClient,
+    "carrefour": CarrefourCatalogClient,
+}
 
 
 class CatalogClientFactory:

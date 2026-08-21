@@ -127,6 +127,30 @@ def test_jobs_happy_path_sample_catalog(client: TestClient) -> None:
     assert row["product_id"] == "4245"
     assert row["units_needed"] == 2
     assert row["status"] == "matched"
+    assert body["matched_count"] == 1
+    assert body["no_match_count"] == 0
+    assert body["unmatched_queries"] == []
+
+
+def test_jobs_includes_no_match_summary(client: TestClient) -> None:
+    created = client.post(
+        "/jobs",
+        json={
+            "text": "arroz basmati 1500 g\nxyzzy_not_a_product_99",
+            "store": "mercadona",
+            "postal_code": "28001",
+        },
+    )
+    assert created.status_code == 202
+    job_id = created.json()["id"]
+    body = client.get(f"/jobs/{job_id}").json()
+    assert body["status"] == "done"
+    assert body["matched_count"] == 1
+    assert body["no_match_count"] == 1
+    assert len(body["unmatched_queries"]) == 1
+    assert "xyzzy" in body["unmatched_queries"][0]
+    statuses = {r["status"] for r in body["results"]}
+    assert statuses == {"matched", "no_match"}
 
 
 def test_jobs_missing_404(client: TestClient) -> None:

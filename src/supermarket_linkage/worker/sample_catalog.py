@@ -67,21 +67,22 @@ class SampleCatalogClient(BaseCatalogClient):
 
     def search(self, query: str, *, postal_code: Optional[str] = None) -> pl.DataFrame:
         """
-        We delete the postal code and perform a search over the batch.
+        Search one query (postal code ignored offline).
         """
         del postal_code
-        return self.search_products([query])
+        return self.search_batch([query])
 
-    def search_products(
+    def search_batch(
         self,
         queries: Sequence[str],
         *,
         postal_code: Optional[str] = None,
     ) -> pl.DataFrame:
         """
-        This function allows to match products whose name tokens contain all query tokens.
-        The queries are search strings (raw or already normalized); the function returns ProductTable
-        rows.
+        Match products whose name tokens contain all query tokens.
+
+        Pre: ``queries`` may be empty or contain blanks (skipped).
+        Post: ProductTable rows with ``source_query`` set to the normalized query.
         """
         del postal_code
         frames: List[pl.DataFrame] = []
@@ -96,9 +97,7 @@ class SampleCatalogClient(BaseCatalogClient):
 
     def _search_product(self, query_norm: str) -> pl.DataFrame:
         """
-        This function allows to match a prodyc whose name tokens contain all query tokens.
-        The queries are search strings (raw or already normalized); the function returns ProductTable
-        rows.
+        Match catalog rows whose name tokens contain all tokens of ``query_norm``.
         """
         tokens = [t for t in query_norm.split() if t]
         if not tokens:

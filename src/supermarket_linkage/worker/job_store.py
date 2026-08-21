@@ -15,26 +15,29 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
 from typing import (
-    Any, 
+    Any,
     Callable,
+    Dict,
     List,
-    Dict, 
     Optional,
     Union,
 )
 
 from supermarket_linkage.consts import JOB_TTL_SECONDS
-from supermarket_linkage.worker.consts import (
-    STATUS_QUEUED,
-)
+from supermarket_linkage.worker.consts import STATUS_QUEUED
 
-
+# Re-export for callers/tests that import status from this module.
+__all__ = [
+    "JobProgress",
+    "JobRecord",
+    "JobStore",
+    "InMemoryJobStore",
+    "STATUS_QUEUED",
+]
 
 @dataclass
 class JobProgress:
-    """
-    This class represents the payload of the running job (done, total, status).
-    """
+    """Payload of a running job (done, total, status)."""
 
     done: int = 0
     total: int = 0
@@ -43,10 +46,11 @@ class JobProgress:
     def as_dict(self) -> Dict[str, Union[int, str]]:
         return {"done": self.done, "total": self.total, "status": self.status}
 
+
 @dataclass
 class JobRecord:
     """
-    This is the record for one linkage job, it does not store any data after its creation.
+    One linkage job record. Does not store the original paste after creation.
     """
 
     id: str
@@ -57,25 +61,21 @@ class JobRecord:
     warnings: List[str] = field(default_factory=list)
     results: Optional[List[Dict[str, Any]]] = None
     error: Optional[str] = None
+    matched_count: Optional[int] = None
+    no_match_count: Optional[int] = None
+    unmatched_queries: Optional[List[str]] = None
 
 
 class JobStore(ABC):
-    """
-    This class allows to create, read or update jobs and expired records
-    are treated as missing.
-    """
+    """Create, read, or update jobs; expired records are treated as missing."""
 
     @abstractmethod
     def create(self, job: JobRecord) -> None:
-        """
-        This function allows to create a job, where job.id is unique. 
-        """
+        """Create a job; ``job.id`` must be unique."""
 
     @abstractmethod
     def get(self, job_id: str) -> Optional[JobRecord]:
-        """
-        This function returns a copy of a job or None if it expired or it is missing.
-        """
+        """Return a copy of a job, or None if expired / missing."""
 
     @abstractmethod
     def update(
@@ -83,22 +83,21 @@ class JobStore(ABC):
         job_id: str,
         *,
         status: Optional[str] = None,
-        progress: JobProgress | None = None,
+        progress: Optional[JobProgress] = None,
         warnings: Optional[List[str]] = None,
         results: Optional[List[Dict[str, Any]]] = None,
         error: Optional[str] = None,
+        matched_count: Optional[int] = None,
+        no_match_count: Optional[int] = None,
+        unmatched_queries: Optional[List[str]] = None,
     ) -> Optional[JobRecord]:
-        """
-        This function allows to patch fields on an existing job. 
-        It returns None if the job is missing or it has expired.
-        """
+        """Patch fields on an existing job. None if missing or expired."""
 
 
 class InMemoryJobStore(JobStore):
     """
-    This class is a process-local dict with job_ttl_seconds timeline. It is not 
-    shared across replicas. This is the previous version for a future Redis database 
-    for distributed computing, in case we need to scale this.
+    Process-local dict with TTL. Not shared across replicas.
+    Placeholder until a Redis-backed store if we scale out.
     """
 
     def __init__(
@@ -137,6 +136,9 @@ class InMemoryJobStore(JobStore):
         warnings: Optional[List[str]] = None,
         results: Optional[List[Dict[str, Any]]] = None,
         error: Optional[str] = None,
+        matched_count: Optional[int] = None,
+        no_match_count: Optional[int] = None,
+        unmatched_queries: Optional[List[str]] = None,
     ) -> Optional[JobRecord]:
         with self._lock:
             self._purge_unlocked()
@@ -153,6 +155,12 @@ class InMemoryJobStore(JobStore):
                 job.results = results
             if error is not None:
                 job.error = error
+            if matched_count is not None:
+                job.matched_count = matched_count
+            if no_match_count is not None:
+                job.no_match_count = no_match_count
+            if unmatched_queries is not None:
+                job.unmatched_queries = list(unmatched_queries)
             job.updated_at = self._now()
             return _copy_job(job)
 
@@ -173,4 +181,7 @@ def _copy_job(job: JobRecord) -> JobRecord:
         progress=replace(job.progress),
         warnings=list(job.warnings),
         results=list(job.results) if job.results is not None else None,
+        unmatched_queries=(
+            list(job.unmatched_queries) if job.unmatched_queries is not None else None
+        ),
     )

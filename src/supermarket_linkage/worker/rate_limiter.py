@@ -151,9 +151,9 @@ class RateLimiter:
 
     def consume_job(self, ip: str) -> bool:
         """
-        It consumes a job token and acquire a concurrent slot (atomically, for that job). 
-        Returns True if and only if both hourly quota and concurrent slot allocations succeed. 
-        On failure, neither of them are kept.
+        Consume a job token and acquire a concurrent slot atomically.
+        Returns True only if both hourly quota and concurrent slot succeed.
+        On failure, neither is kept.
         """
         with self._lock:
             bucket = self._jobs.get(ip)
@@ -172,3 +172,11 @@ class RateLimiter:
                 return False
             self._inflight[ip] = current + 1
             return True
+
+    def allow_and_acquire_job(self, ip: str) -> bool:
+        """Alias for ``consume_job`` (hourly quota + concurrent slot)."""
+        return self.consume_job(ip)
+
+    def try_acquire_job(self, ip: str) -> bool:
+        """Alias for ``reserve_concurrent_job`` (concurrent slot only)."""
+        return self.reserve_concurrent_job(ip)

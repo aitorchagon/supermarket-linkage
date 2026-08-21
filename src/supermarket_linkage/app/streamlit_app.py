@@ -71,6 +71,9 @@ def _init_state() -> None:
         "results": None,
         "job_error": None,
         "job_warnings": [],
+        "matched_count": None,
+        "no_match_count": None,
+        "unmatched_queries": [],
         "store_id": "mercadona",
         "postal_code": "",
         "is_promo_member": False,
@@ -107,6 +110,9 @@ def _poll_job(client: WorkerClient, job_id: str) -> None:
         if job_status == "done":
             st.session_state.results = body.get("results") or []
             st.session_state.job_warnings = body.get("warnings") or []
+            st.session_state.matched_count = body.get("matched_count")
+            st.session_state.no_match_count = body.get("no_match_count")
+            st.session_state.unmatched_queries = body.get("unmatched_queries") or []
             st.session_state.job_error = None
             return
         if job_status in {"error", "timeout"}:
@@ -139,8 +145,21 @@ def _worker_status_fragment(client: WorkerClient, worker_url: str) -> None:
         st.rerun(scope="app")
 
 
-def _render_results(rows: List[dict[str, Any]]) -> None:
+def _render_results(
+    rows: list[dict[str, Any]],
+    *,
+    matched_count: int | None = None,
+    no_match_count: int | None = None,
+    unmatched_queries: list[str] | None = None,
+) -> None:
     st.subheader("Resultados")
+    if matched_count is not None and no_match_count is not None:
+        st.caption(f"{matched_count} con match · {no_match_count} sin match")
+    if unmatched_queries:
+        preview = ", ".join(unmatched_queries[:8])
+        more = f" (+{len(unmatched_queries) - 8})" if len(unmatched_queries) > 8 else ""
+        st.info(f"Sin match: {preview}{more}")
+
     display = [{col: row.get(col) for col in _RESULT_COLUMNS} for row in rows]
     column_config: dict[str, Any] = {}
     if hasattr(st, "column_config"):
@@ -289,12 +308,20 @@ def main() -> None:
     if results is not None:
         for warning in st.session_state.get("job_warnings") or []:
             st.warning(warning)
-        _render_results(results)
+        _render_results(
+            results,
+            matched_count=st.session_state.get("matched_count"),
+            no_match_count=st.session_state.get("no_match_count"),
+            unmatched_queries=st.session_state.get("unmatched_queries") or [],
+        )
         if st.button("Nueva búsqueda"):
             st.session_state.job_id = None
             st.session_state.results = None
             st.session_state.job_error = None
             st.session_state.job_warnings = []
+            st.session_state.matched_count = None
+            st.session_state.no_match_count = None
+            st.session_state.unmatched_queries = []
             st.rerun()
 
 

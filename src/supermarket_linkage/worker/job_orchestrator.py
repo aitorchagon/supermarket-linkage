@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import logging
 import time
+from dataclasses import dataclass
 from typing import (
-    Callable, 
-    Sequence,
-    Tuple,
-    Optional,
+    Callable,
     Dict,
     List,
+    Optional,
+    Sequence,
+    Tuple,
 )
-from dataclasses import dataclass
 
 import polars as pl
 
@@ -18,16 +18,13 @@ from supermarket_linkage.catalog.base_catalog_client import BaseCatalogClient
 from supermarket_linkage.catalog.catalog_client_factory import CatalogClientFactory
 from supermarket_linkage.catalog.promo_policy import MercadonaPromoPolicy, PromoPolicy
 from supermarket_linkage.consts import JOB_TIMEOUT_SECONDS, SUPPORTED_STORES
+from supermarket_linkage.pipeline.consts import STATUS_MATCHED, STATUS_NO_MATCH
 from supermarket_linkage.pipeline.linkage_orchestrator import LinkageOrchestrator
 from supermarket_linkage.pipeline.semantic_stage import Embedder
 from supermarket_linkage.preprocessors.text_normalizer import extract_search_query
 from supermarket_linkage.schemas.line_result_table import LineResultColumns, LineResultTable
 from supermarket_linkage.schemas.product_table import ProductColumns, ProductTable
 from supermarket_linkage.validation.input_validator import InputValidator, ValidationResult
-from supermarket_linkage.worker.job_store import (
-    JobProgress,
-    JobStore,
-)
 from supermarket_linkage.worker.consts import (
     STATUS_DONE,
     STATUS_ERROR,
@@ -36,31 +33,39 @@ from supermarket_linkage.worker.consts import (
     STATUS_SEARCHING,
     STATUS_TIMEOUT,
 )
+from supermarket_linkage.worker.job_store import JobProgress, JobStore
 from supermarket_linkage.worker.sample_catalog import SampleCatalogClient
 
 log = logging.getLogger(__name__)
 
 
 class JobTimeoutError(Exception):
-    """Job exceeded job_timeout seconds."""
+    """Job exceeded ``job_timeout`` seconds."""
 
 
 @dataclass(frozen=True)
 class JobSpec:
-    """
-    This is a validated job payload
-    """
+    """Validated job payload (lines already sanitized; paste not retained)."""
 
-    lines: Tuple[str]
+    lines: Tuple[str, ...]
     store: str
     postal_code: Optional[str]
     is_promo_member: bool
-    warnings: Tuple[str] = ()
+    warnings: Tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ResultsSummary:
+    """Counts and queries for matched vs unmatched lines."""
+
+    matched_count: int
+    no_match_count: int
+    unmatched_queries: Tuple[str, ...]
+
 
 class JobOrchestrator:
     """
-    This orchestrator allows to drive the catalog fetch from the store and the record linkage
-    while writing the progress to JobStore.
+    Drive catalog fetch and record linkage while writing progress to JobStore.
     """
 
     def __init__(
@@ -88,14 +93,13 @@ class JobOrchestrator:
         self._validator = InputValidator()
 
     def validate_text(self, text: str) -> ValidationResult:
-        """
-        This function allows to sanitize the pasted text."""
+        """Sanitize pasted text (limits, control chars); do not log the paste."""
         return self._validator.validate(text)
 
     def run(self, job_id: str, spec: JobSpec) -> None:
         """
-        The caller releases the rate-limit slot and we execute the specified job. Job can be
-        done, error or timeout, pasted text is not stored.
+        Execute ``spec`` and update the store. Caller releases the rate-limit slot.
+        Status ends as done, error, or timeout. Pasted text is not stored.
         """
         n = len(spec.lines)
         deadline = self._now() + self._timeout_s
@@ -107,13 +111,23 @@ class JobOrchestrator:
             )
             log.info("job %s start line_count=%s store=%s", job_id, n, spec.store)
             results = self._execute(job_id, spec, deadline=deadline)
+            summary = summarize_results(results)
             self._store.update(
                 job_id,
                 status=STATUS_DONE,
                 progress=JobProgress(done=n, total=n, status=STATUS_DONE),
                 results=results,
+                matched_count=summary.matched_count,
+                no_match_count=summary.no_match_count,
+                unmatched_queries=list(summary.unmatched_queries),
             )
-            log.info("job %s done line_count=%s", job_id, n)
+            log.info(
+                "job %s done line_count=%s matched=%s no_match=%s",
+                job_id,
+                n,
+                summary.matched_count,
+                summary.no_match_count,
+            )
         except JobTimeoutError:
             log.warning("job %s timeout after %ss", job_id, self._timeout_s)
             self._store.update(
@@ -144,7 +158,7 @@ class JobOrchestrator:
 
         client = self._create_client(spec.store)
         hits = client.search_batch(
-            queries=unique, 
+            queries=unique,
             postal_code=spec.postal_code,
         )
         hits_by_query = _split_hits(hits=hits, unique=unique)
@@ -171,8 +185,8 @@ class JobOrchestrator:
                 query_norm=normalized_query,
             )
             result = _apply_promo(
-                result=result, 
-                is_promo_member=spec.is_promo_member, 
+                result=result,
+                is_promo_member=spec.is_promo_member,
                 policy=self._promo,
             )
             frames.append(result)
@@ -188,17 +202,12 @@ class JobOrchestrator:
 
         if not frames:
             return []
-        # not a fan of concatenating things using 'diagonal' or 'diagonal_relaxed' but we enforce
-        # the schema afterwards.
         out = LineResultTable.enforce_schema(pl.concat(frames, how="diagonal_relaxed"))
         return out.to_dicts()
 
     def _create_client(self, store: str) -> BaseCatalogClient:
         """
-        If there is a static client at the instance level, we return it immediately (useful for unitary tests)
-        If use_sample is activteed, we return SampleCatalogClient (same, for unitary tests)
-        If we have an already live client, we reuse it.
-        Otherwise, we create a client using the factory and we save it in live_clients.
+        Resolve the catalog client: fixed (tests), sample, cached live, or factory.
         """
         if self._fixed_client is not None:
             return self._fixed_client
@@ -219,33 +228,52 @@ class JobOrchestrator:
 
 
 def assert_supported_store(store: str) -> str:
-    """
-    We normalize the store id; if the store id is not found we raise ValueError.
-    """
-    
+    """Normalize store id; raise ValueError if not available in v1."""
     key = store.strip().lower()
     if key not in SUPPORTED_STORES:
         raise ValueError(f"Store {store!r} is not available in v1.")
     return key
 
 
+def summarize_results(results: Sequence[Dict[str, object]]) -> ResultsSummary:
+    """Count matched / no_match rows and collect unmatched query strings."""
+    matched = 0
+    unmatched: List[str] = []
+    for row in results:
+        status = str(row.get(LineResultColumns.STATUS) or "")
+        if status == STATUS_MATCHED:
+            matched += 1
+        elif status == STATUS_NO_MATCH:
+            unmatched.append(str(row.get(LineResultColumns.QUERY) or "").strip())
+    return ResultsSummary(
+        matched_count=matched,
+        no_match_count=len(unmatched),
+        unmatched_queries=tuple(unmatched),
+    )
+
+
 def _split_hits(hits: pl.DataFrame, unique: Sequence[str]) -> Dict[str, pl.DataFrame]:
     """
-    We retrieve the polars DataFrame hits and we divide it into a dictionary of smaller dataframes, using
-    unique products.
+    Partition batch search hits by ``source_query`` into one frame per unique query.
+
+    Uses ``partition_by(..., as_dict=True)`` instead of one filter scan per query.
     """
+    empty = ProductTable.as_empty_dataframe()
     if hits.height == 0:
-        return {q: ProductTable.as_empty_dataframe() for q in unique}
-    out: dict[str, pl.DataFrame] = {}
+        return {q: empty for q in unique}
+
     src = ProductColumns.SOURCE_QUERY
-    for q in unique:
-        part = hits.filter(pl.col(src) == q)
-        out[q] = (
-            ProductTable.enforce_schema(part)
-            if part.height
-            else ProductTable.as_empty_dataframe()
-        )
-    return out
+    parts = hits.partition_by(src, as_dict=True, include_key=True)
+    # Polars may key single-column partitions by scalar or 1-tuple depending on version.
+    by_query: Dict[str, pl.DataFrame] = {}
+    for key, frame in parts.items():
+        if isinstance(key, tuple):
+            q = key[0] if len(key) == 1 else key
+        else:
+            q = key
+        by_query[str(q)] = ProductTable.enforce_schema(frame)
+
+    return {q: by_query.get(q, empty) for q in unique}
 
 
 def _apply_promo(
@@ -253,15 +281,15 @@ def _apply_promo(
     is_promo_member: bool,
     policy: PromoPolicy,
 ) -> pl.DataFrame:
-    """
-    We set an effective pack price and total lines from PromoPolicy.
-    """
+    """Set effective pack price and line total from PromoPolicy (usually one row)."""
     effective: List[Optional[float]] = []
     totals: List[Optional[float]] = []
     for row in result.iter_rows(named=True):
         price = policy.effective_price(row, is_promo_member)
         units = row.get(LineResultColumns.UNITS_NEEDED)
-        total = (float(units) * price) if price is not None and units is not None else None
+        total = (
+            (float(units) * price) if price is not None and units is not None else None
+        )
         effective.append(price)
         totals.append(total)
     out = result.with_columns(

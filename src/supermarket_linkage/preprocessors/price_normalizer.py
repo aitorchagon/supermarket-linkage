@@ -7,17 +7,16 @@ from typing import (
 import polars as pl
 
 from supermarket_linkage.preprocessors.base_preprocessor import BasePreprocessor
-from supermarket_linkage.preprocessors.consts import _to_float, to_kg
-from supermarket_linkage.regex_consts import PACK_SIZE
-from supermarket_linkage.schemas.product_table import ProductColumns, ProductTable
 from supermarket_linkage.preprocessors.consts import (
     MEASURE_KILO,
     MEASURE_LITRO,
     MEASURE_UNIDAD,
     _MEASURE_ALIASES,
+    _to_float,
+    to_kg,
 )
-from supermarket_linkage.catalog.utils import _to_float
-
+from supermarket_linkage.regex_consts import PACK_SIZE
+from supermarket_linkage.schemas.product_table import ProductColumns, ProductTable
 
 
 def canonicalize_unit_measure(raw: Optional[str]) -> Optional[str]:

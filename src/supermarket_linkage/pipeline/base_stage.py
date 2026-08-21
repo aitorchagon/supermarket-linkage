@@ -14,16 +14,21 @@ class BaseStage(ABC):
 
     def process(self, df: pl.DataFrame) -> pl.DataFrame:
         """
-        This function executes a stage. We should be having a polars DataFrame with the expected columns and
-        return a polars DataFrame whose schema is compatible with CandidateTable.
+        Run the stage. Empty frames skip column checks and go to ``_process``.
+        Non-empty frames need ``query_norm`` and ``name`` or ``name_norm``.
         """
         stage_name = self.__class__.__name__
+
+        if df.height == 0:
+            return self._process(df)
 
         if CandidateColumns.QUERY_NORM not in df.columns:
             raise ValueError(f"{stage_name} requires 'query_norm'.")
 
-        if CandidateColumns.NAME not in df.columns:
-            raise ValueError(f"{stage_name} requires 'name'.")
+        has_name = CandidateColumns.NAME in df.columns
+        has_name_norm = CandidateColumns.NAME_NORM in df.columns
+        if not has_name and not has_name_norm:
+            raise ValueError(f"{stage_name} requires 'name' or 'name_norm'.")
 
         return self._process(df)
     

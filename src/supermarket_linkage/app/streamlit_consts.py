@@ -9,7 +9,6 @@ from supermarket_linkage.consts import (
     COMING_SOON_STORES,
     SUPPORTED_STORES,
 )
-from supermarket_linkage.schemas.line_result_table import LineResultColumns
 from supermarket_linkage.export.mercadona_export_builder import MercadonaExportBuilder
 from supermarket_linkage.schemas.line_result_table import LineResultColumns
 from supermarket_linkage.validation.input_validator import InputValidator
