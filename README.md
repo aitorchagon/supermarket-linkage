@@ -132,6 +132,7 @@ Job state is in-memory: a Space restart drops in-flight jobs (Redis is deferred)
 
 ```bash
 uv sync --extra dev
+# or, if uv is not installed: .venv/bin/python -m pytest
 uv run pytest
 ```
 
@@ -144,3 +145,14 @@ RUN_LIVE_MERCADONA=1 uv run pytest tests/integration/test_mercadona_live_smoke.p
 ```
 
 Do not loop or hammer that test. See DESIGN.md § Live Mercadona smoke.
+
+### GitHub Actions
+
+Push or open a PR against `main` / `master`. Workflow: `.github/workflows/ci.yml`.
+
+| Job | Gate | What |
+|-----|------|------|
+| Offline tests | **required** | `pytest` unit + integration + benchmark (`-m "not live"`) |
+| Ruff | advisory (`continue-on-error`) | lint + format check until style debt is cleaned |
+
+No automatic deploy yet (HF Spaces / Streamlit Cloud are configured in their UIs). Wire CD later with platform tokens if you want push-to-prod.
