@@ -1,14 +1,19 @@
-"""Base column enum and Polars table schema helpers."""
-
 from abc import ABC, abstractmethod
 from enum import StrEnum
-from typing import Any, Dict, List, Type, Union
+from typing import (
+    Any, 
+    Dict, 
+    List, 
+    Type, 
+    Union,
+)
 
 import polars as pl
 
 
 class ColumnsEnumBase(StrEnum):
-    """Base StrEnum for table column names."""
+    """
+    This is a base StrEnum class for table column names."""
 
     @classmethod
     def list(cls) -> List[str]:
@@ -16,7 +21,9 @@ class ColumnsEnumBase(StrEnum):
 
 
 class TableSchemaBase(ABC):
-    """Abstract Polars table schema: columns enum + dtypes + enforce helpers."""
+    """
+    This is an abstract Polars table schema: columns enum + dtypes + enforce helpers.
+    """
 
     @classmethod
     @abstractmethod
@@ -32,7 +39,7 @@ class TableSchemaBase(ABC):
     @classmethod
     @abstractmethod
     def dtypes(cls) -> Dict[str, Any]:
-        """Map column name → Polars dtype (DataFrame schema)."""
+        """Map column name to Polars dtype (DataFrame schema)."""
         pass
 
     @classmethod
@@ -57,7 +64,6 @@ class TableSchemaBase(ABC):
     @classmethod
     def enforce_schema(cls, df: pl.DataFrame) -> pl.DataFrame:
         """Cast/add/drop columns to match dtypes() order exactly."""
-        # Bare ``pl.DataFrame()`` + ``pl.lit`` would yield one null row.
         if df.height == 0 and df.width == 0:
             return cls.as_empty_dataframe()
 

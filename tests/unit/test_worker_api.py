@@ -1,5 +1,3 @@
-"""TestClient coverage: 400 validation, 429 rate limit, sample-catalog happy path."""
-
 from __future__ import annotations
 
 from typing import Iterator

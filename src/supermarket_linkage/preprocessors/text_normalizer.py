@@ -13,7 +13,7 @@ from typing import (
 import polars as pl
 
 from supermarket_linkage.preprocessors.base_preprocessor import BasePreprocessor
-from supermarket_linkage.preprocessors.units import (
+from supermarket_linkage.preprocessors.consts import (
     is_count_unit, 
     _to_float, 
     to_kg,

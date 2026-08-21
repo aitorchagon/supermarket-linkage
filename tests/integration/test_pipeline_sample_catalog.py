@@ -1,12 +1,15 @@
-"""Offline integration: sample catalog → linkage pipeline (no HTTP, no model)."""
-
 from __future__ import annotations
 
 import json
+from typing import (
+    List,
+    Dict,
+)
 from pathlib import Path
+import pytest
 
 import polars as pl
-import pytest
+import numpy as np
 
 from supermarket_linkage.pipeline.linkage_orchestrator import LinkageOrchestrator
 from supermarket_linkage.preprocessors.price_normalizer import PriceNormalizer
@@ -18,19 +21,17 @@ FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "sample_catalog.jso
 
 _SKIP = frozenset({"kg", "g", "l", "ml", "cl", "uds", "ud", "x", "pack", "packs"})
 
-
 class _TokenOverlapEmbedder:
     """Deterministic bag-of-content-tokens (CI-safe, no downloads)."""
 
     def __init__(self) -> None:
-        self._vocab: dict[str, int] = {}
+        self._vocab: Dict[str, int] = {}
 
     def _tokens(self, text: str) -> List[str]:
         return [t for t in (text or "").split() if t.isalpha() and t not in _SKIP]
 
-    def embed(self, texts: List[str]):  # noqa: ANN201
-        import numpy as np
-
+    def embed(self, texts: List[str]):
+    
         for text in texts:
             for tok in self._tokens(text):
                 if tok not in self._vocab:

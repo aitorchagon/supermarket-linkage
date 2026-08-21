@@ -39,7 +39,7 @@ from supermarket_linkage.preprocessors.price_normalizer import (
     PriceNormalizer,
     canonicalize_unit_measure,
 )
-from supermarket_linkage.preprocessors.units import to_kg
+from supermarket_linkage.preprocessors.consts import to_kg
 
 from supermarket_linkage.schemas.product_table import ProductColumns, ProductTable
 from supermarket_linkage.validation.postal_code_validator import is_valid_postal_code

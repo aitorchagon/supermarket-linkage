@@ -1,5 +1,3 @@
-"""Unit tests for Mercadona JSON parsing and catalog client (no live HTTP)."""
-
 from __future__ import annotations
 
 import json

@@ -1,5 +1,3 @@
-"""Unit tests for Mercadona export (URLs, CSV, clipboard with units_needed)."""
-
 from supermarket_linkage.consts import MERCADONA_PRODUCT_URL_TEMPLATE
 from supermarket_linkage.export.base_export_builder import CSV_COLUMNS
 from supermarket_linkage.export.mercadona_export_builder import MercadonaExportBuilder

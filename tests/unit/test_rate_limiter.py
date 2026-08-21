@@ -1,5 +1,3 @@
-"""Unit tests for in-process RateLimiter."""
-
 from supermarket_linkage.consts import (
     MAX_CONCURRENT_JOBS_PER_IP,
     MAX_JOBS_PER_HOUR,

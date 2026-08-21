@@ -1,6 +1,6 @@
-"""Application-wide constants. Regex patterns live in regex_consts.py."""
+from typing import Tuple
 
-# --- Linkage pipeline ---
+# --- Record linkage ---
 SEMANTIC_THRESHOLD: float = 0.75
 JW_MAX_DISTANCE: float = 0.1
 
@@ -21,7 +21,7 @@ MAX_WARMUP_PER_HOUR: int = 10
 MAX_JOBS_PER_HOUR: int = 5
 MAX_CONCURRENT_JOBS_PER_IP: int = 1
 
-# --- Mercadona HTTP (hardcoded hosts only — never take URLs from user input) ---
+# --- Mercadona HTTP hosts and URLs ---
 MERCADONA_API_BASE: str = "https://tienda.mercadona.es/api"
 MERCADONA_ALGOLIA_APP_ID: str = "7UZJKL1DJ0"
 MERCADONA_ALGOLIA_API_KEY: str = "9d8f2e39e90df472b4f2e559a116fe17"
@@ -40,5 +40,5 @@ HTTP_RATE_LIMIT_SECONDS: float = 0.5
 EMBEDDING_MODEL_NAME: str = "paraphrase-multilingual-MiniLM-L12-v2"
 
 # --- Stores (v1: mercadona only enabled) ---
-SUPPORTED_STORES: Tuple[str, ...] = ("mercadona",)
-COMING_SOON_STORES: Tuple[str, ...] = ("dia", "carrefour")
+SUPPORTED_STORES: Tuple[str] = ("mercadona",)
+COMING_SOON_STORES: Tuple[str] = ("dia", "carrefour")

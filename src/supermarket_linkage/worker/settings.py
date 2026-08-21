@@ -1,30 +1,33 @@
-"""Worker process settings from the environment."""
-
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-
-from supermarket_linkage.consts import JOB_TIMEOUT_SECONDS, JOB_TTL_SECONDS
+from typing import (
+    Optional,
+)
+from supermarket_linkage.consts import (
+    JOB_TIMEOUT_SECONDS, 
+    JOB_TTL_SECONDS,
+)
 
 
 def env_flag(name: str) -> bool:
-    """True when ``name`` is a truthy env flag (1/true/yes/on)."""
+    """
+    Returns True when name is a true environment flag. 
+    """
     return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 @dataclass(frozen=True)
 class WorkerSettings:
-    """Runtime flags for the FastAPI worker.
-
-    ``use_sample_catalog``: local/CI path — no Mercadona HTTP, TokenOverlap embedder.
-    ``skip_model_preload``: skip lifespan ``preload()`` (tests). Lazy-load still works.
+    """
+    These are runtime flags for the FastAPI worker.
     """
 
-    api_key: str | None
+    api_key: Optional[str]
     use_sample_catalog: bool
     skip_model_preload: bool
-    sample_catalog_path: str | None
+    sample_catalog_path: Optional[str]
     job_timeout_s: int = JOB_TIMEOUT_SECONDS
     job_ttl_s: int = JOB_TTL_SECONDS
 
@@ -32,8 +35,8 @@ class WorkerSettings:
     def from_env(cls) -> WorkerSettings:
         key = os.environ.get("WORKER_API_KEY", "").strip() or None
         sample = env_flag("USE_SAMPLE_CATALOG")
-        # MiniLM is skipped by using the sample backend; TokenOverlap still
-        # preloads in lifespan unless SKIP_MODEL_PRELOAD=1 (tests).
+        # we skip MiniLM using the sample backend, tokenoverlap preloads in lifespan unless
+        # skip_model_preload, which is set in the unitary tests
         skip_preload = env_flag("SKIP_MODEL_PRELOAD")
         path = os.environ.get("SAMPLE_CATALOG_PATH", "").strip() or None
         return cls(

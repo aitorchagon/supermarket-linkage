@@ -1,7 +1,6 @@
-"""Shopping-list paste limits and sanitization (Decision 14)."""
-
 from __future__ import annotations
 
+from typing import List, Optional
 from collections import Counter
 from dataclasses import dataclass, field
 
@@ -13,37 +12,38 @@ from supermarket_linkage.consts import (
     MIN_LINE_LENGTH,
     WARN_LINES,
 )
-from supermarket_linkage.regex_consts import CONTROL_CHARS
+from supermarket_linkage.regex_consts import CONTROL_CHARS, POSTAL_CODE
 
+
+def is_valid_postal_code(code: str) -> bool:
+    """
+    This function returns True if and only if postal code is valid (it has 5 numbers).
+    """
+    return bool(POSTAL_CODE.fullmatch(code))
 
 @dataclass(frozen=True)
 class ValidationResult:
-    """Outcome of validating a paste.
-
-    ``ok`` True → ``lines`` ready for the pipeline; ``error`` is None.
-    ``ok`` False → ``error`` set; ``lines`` empty.
-    ``warnings`` may be non-empty even when ``ok`` (e.g. soft line warn).
+    """
+    This is the outcome of validating a paste. if lines are ready for the pipeline,
+    we return ok, error if not ok. 
     """
 
     ok: bool
     lines: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
-    error: str | None = None
+    error: Optional[str] = None
 
 
 class InputValidator:
-    """Validate and sanitize raw shopping-list text."""
+    """
+    This class allows to validate and sanitize raw shopping-list text.
+    """
 
     def validate(self, text: str) -> ValidationResult:
-        """Sanitize paste and enforce size / spam caps.
-
-        Pre: ``text`` is the raw textarea (any length, any control chars).
-        Post: On success, non-empty ``lines`` with controls stripped, empties
-        dropped, each line length in ``[MIN_LINE_LENGTH, MAX_LINE_LENGTH]``,
-        count ≤ ``MAX_LINES``, UTF-8 size ≤ ``MAX_TOTAL_BYTES``, and (when
-        more than one line) duplicate ratio ≤ ``MAX_DUPLICATE_RATIO``. Soft
-        ``WARN_LINES`` goes to warnings.
-        On failure, ``ok`` is False and ``error`` explains why.
+        """
+        This function allows to sanitize past text and enforce size or spam caps.
+        As an input, we have the raw text area; as an output, we have non-empty lines with
+        controls stripped, empties dropped, capped at MAX_LINES and MAX_TOTAL_BYTES, avoid duplicates. 
         """
         if not isinstance(text, str):
             return ValidationResult(ok=False, error="Input must be a string.")
@@ -52,7 +52,7 @@ class InputValidator:
         if raw_bytes > MAX_TOTAL_BYTES:
             return ValidationResult(
                 ok=False,
-                error=f"Paste exceeds {MAX_TOTAL_BYTES} bytes ({raw_bytes}).",
+                error=f"Pasted text exceeds {MAX_TOTAL_BYTES} bytes ({raw_bytes}).",
             )
 
         cleaned = CONTROL_CHARS.sub("", text)
@@ -74,7 +74,7 @@ class InputValidator:
             lines.append(line)
 
         if not lines:
-            return ValidationResult(ok=False, error="No non-empty lines.")
+            return ValidationResult(ok=False, error="The pasted text is empty, please provide some text.")
 
         if len(lines) > MAX_LINES:
             return ValidationResult(
@@ -98,10 +98,11 @@ class InputValidator:
 
 
 def _duplicate_ratio(lines: List[str]) -> float:
-    """Fraction of lines matching the most common line.
-
-    Pre: ``lines`` non-empty.
-    Post: Value in (0, 1]; 1.0 means every line is identical.
+    """
+    This function calculates the fraction of lines that matches
+    the most common line, to determine whether we have duplicates.
+    We cannot do unique directly as it is free text and duplicates can come in
+    different sizes.
     """
     counts = Counter(lines)
     return counts.most_common(1)[0][1] / len(lines)

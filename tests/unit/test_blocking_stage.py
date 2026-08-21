@@ -1,5 +1,3 @@
-"""Unit tests for BlockingStage."""
-
 import polars as pl
 
 from supermarket_linkage.pipeline.blocking_stage import BlockingStage

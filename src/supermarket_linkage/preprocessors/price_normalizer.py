@@ -7,7 +7,7 @@ from typing import (
 import polars as pl
 
 from supermarket_linkage.preprocessors.base_preprocessor import BasePreprocessor
-from supermarket_linkage.preprocessors.units import _to_float, to_kg
+from supermarket_linkage.preprocessors.consts import _to_float, to_kg
 from supermarket_linkage.regex_consts import PACK_SIZE
 from supermarket_linkage.schemas.product_table import ProductColumns, ProductTable
 from supermarket_linkage.preprocessors.consts import (

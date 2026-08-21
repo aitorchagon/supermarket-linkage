@@ -1,14 +1,3 @@
-"""Opt-in live Mercadona Algolia smoke. Skipped unless RUN_LIVE_MERCADONA=1.
-
-One small search only (warehouse ``mad1``, no postal lookup). The client still
-applies ``HTTP_RATE_LIMIT_SECONDS`` after the request. Do not loop this test
-against Algolia; it is not part of the default suite.
-
-Run once:
-
-    RUN_LIVE_MERCADONA=1 .venv/bin/pytest tests/integration/test_mercadona_live_smoke.py -s -v
-"""
-
 from __future__ import annotations
 
 import os

@@ -1,5 +1,3 @@
-"""Unit tests for Branch A / Branch B winner selection."""
-
 import polars as pl
 
 from supermarket_linkage.pipeline.linkage_orchestrator import select_winner

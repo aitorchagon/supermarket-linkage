@@ -1,5 +1,3 @@
-"""Unit tests for TextNormalizer."""
-
 import polars as pl
 
 from supermarket_linkage.preprocessors.text_normalizer import (

@@ -1,4 +1,3 @@
-"""In-memory job store TTL and copy-on-read."""
 
 from supermarket_linkage.consts import JOB_TTL_SECONDS
 from supermarket_linkage.worker.job_store import (

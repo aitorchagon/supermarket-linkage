@@ -1,5 +1,3 @@
-"""Unit tests for HeuristicStage."""
-
 import polars as pl
 
 from supermarket_linkage.pipeline.heuristic_stage import HeuristicStage, heuristic_pass

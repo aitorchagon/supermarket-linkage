@@ -1,5 +1,3 @@
-"""Final per-line linkage output, including quantity fulfillment fields."""
-
 from typing import Any, Dict, Type
 
 import polars as pl

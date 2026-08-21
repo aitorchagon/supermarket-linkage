@@ -1,5 +1,3 @@
-"""Catalog / search-result product table schema."""
-
 from typing import Any, Dict, Type
 
 import polars as pl

@@ -1,7 +1,6 @@
-"""Hot 10-line job latency (sample catalog + mocked HTTP). No live Mercadona / MiniLM."""
-
 from __future__ import annotations
 
+from typing import List
 import time
 
 from fastapi.testclient import TestClient

@@ -1,16 +1,16 @@
-"""Shared helpers for job-latency benches (sample catalog / mocked HTTP).
-
-No MiniLM download, no live Mercadona, no GPU. Plan SLOs still apply as
-upper bounds; mock fail/warn thresholds are tighter so a slow pipeline
-fails CI even without network or model load.
-"""
-
 from __future__ import annotations
 
 import json
 import time
 import warnings
-from typing import Iterator
+from typing import (
+    Set,
+    Tuple,
+    List,
+    Dict,
+    Union,
+    Generator,
+)
 from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import parse_qs
@@ -20,14 +20,23 @@ import pytest
 from fastapi.testclient import TestClient
 
 from supermarket_linkage.catalog.mercadona_client import MercadonaCatalogClient
-from supermarket_linkage.consts import MERCADONA_ALGOLIA_HOST, MERCADONA_ALGOLIA_QUERIES_PATH
-from supermarket_linkage.preprocessors.text_normalizer import extract_search_query, normalize_text
+from supermarket_linkage.consts import (
+    MERCADONA_ALGOLIA_HOST, 
+    MERCADONA_ALGOLIA_QUERIES_PATH,
+)
+from supermarket_linkage.preprocessors.text_normalizer import (
+    extract_search_query, 
+    normalize_text,
+)
 from supermarket_linkage.worker.api import create_app
 from supermarket_linkage.worker.rate_limiter import RateLimiter
 from supermarket_linkage.worker.settings import WorkerSettings
-from supermarket_linkage.worker.warmup import ModelRegistry, TokenOverlapEmbedder
+from supermarket_linkage.worker.warmup import (
+    ModelRegistry, 
+    TokenOverlapEmbedder, 
+)
 
-# --- Plan SLOs (DESIGN.md §10; live CPU + MiniLM). Mock path must beat these. ---
+# --- Planned SLOs, mock path must beat these ones ---
 SLO_COLD_WARMUP_P95_S = 90.0
 SLO_HOT_10_P50_S = 60.0
 SLO_HOT_50_P95_S = 300.0
@@ -48,7 +57,7 @@ _ALGOLIA_URL = f"{MERCADONA_ALGOLIA_HOST}{MERCADONA_ALGOLIA_QUERIES_PATH}"
 _FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "sample_catalog.json"
 
 # User-style lines covering the sample catalog (plus a few no-matches).
-LINES_10: Tuple[str, ...] = (
+LINES_10: Tuple[str] = (
     "arroz basmati 1500 g",
     "leche entera 1l",
     "huevos camperos",
@@ -61,7 +70,7 @@ LINES_10: Tuple[str, ...] = (
     "azucar blanco 1 kg",
 )
 
-LINES_50: Tuple[str, ...] = LINES_10 + (
+LINES_50: Tuple[str] = LINES_10 + (
     "arroz redondo 1 kg",
     "arroz integral 1 kg",
     "leche semidesnatada 1l",
@@ -108,7 +117,7 @@ _UNIT_TO_FORMAT = {"KILO": "kg", "LITRO": "l", "UNIDAD": "ud"}
 
 
 def percentile(values: List[float], p: float) -> float:
-    """Linear interpolation percentile. ``p`` in 0..100."""
+    """Linear interpolation percentile."""
     if not values:
         raise ValueError("percentile() on empty sample")
     ordered = sorted(values)
@@ -132,7 +141,7 @@ def check_p50(
     slo_s: float,
     label: str,
 ) -> float:
-    """Print p50/p95; fail if mock p50 is wild; warn if elevated."""
+    """Print p50; fail if mock p50 is wild; warn if elevated."""
     p50 = percentile(samples, 50)
     p95 = percentile(samples, 95)
     raw = ", ".join(f"{x:.3f}" for x in samples)
@@ -152,17 +161,22 @@ def check_p50(
 
 
 def check_p95(samples: List[float], *, fail_s: float, label: str) -> float:
+    """Print p95; fail if mock p50 is wild; warn if elevated."""
     p95 = percentile(samples, 95)
     if p95 > fail_s:
         pytest.fail(f"{label} p95={p95:.3f}s exceeds {fail_s:.0f}s")
     return p95
 
 
-def paste(lines: Tuple[str, ...]) -> str:
+def paste(lines: Tuple[str]) -> str:
     return "\n".join(lines)
 
 
-def run_job(client: TestClient, text: str, *, timeout_s: float = 120.0) -> Tuple[float, dict]:
+def run_job(
+        client: TestClient, 
+        text: str, *, 
+        timeout_s: float = 120.0,
+    ) -> Tuple[float, Dict[str, Union[str, bool]]]:
     """Time POST /jobs until the record is terminal. TestClient runs tasks inline."""
     t0 = time.perf_counter()
     created = client.post(
@@ -206,10 +220,9 @@ def measure_hot_jobs(client: TestClient, text: str, n_hot: int) -> Tuple[float, 
         hot.append(elapsed)
     return cold_s, hot
 
-
 @contextmanager
-def sample_client() -> Iterator[TestClient]:
-    """Worker in sample-catalog mode (TokenOverlap, no HTTP)."""
+def sample_client() -> Generator[TestClient]:
+    """Worker in sample-catalog mode"""
     app = create_app(
         settings=WorkerSettings(
             api_key=None,
@@ -223,9 +236,8 @@ def sample_client() -> Iterator[TestClient]:
     with TestClient(app) as client:
         yield client
 
-
 @contextmanager
-def mocked_http_client() -> Iterator[TestClient]:
+def mocked_http_client() -> Generator[TestClient]:
     """Worker with Mercadona client; Algolia answered from sample_catalog.json."""
     hits = _sample_hits()
     transport = httpx.MockTransport(_make_handler(hits))
@@ -250,7 +262,7 @@ def mocked_http_client() -> Iterator[TestClient]:
 
 
 @contextmanager
-def cold_warmup_client() -> Iterator[TestClient]:
+def cold_warmup_client() -> Generator[TestClient]:
     """Sample backend, embedder not preloaded — times POST /warmup."""
     app = create_app(
         settings=WorkerSettings(

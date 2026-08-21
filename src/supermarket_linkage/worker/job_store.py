@@ -14,34 +14,40 @@ import threading
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
-from typing import Any, Callable
+from typing import (
+    Any, 
+    Callable,
+    List,
+    Dict, 
+    Optional,
+    Union,
+)
 
 from supermarket_linkage.consts import JOB_TTL_SECONDS
+from supermarket_linkage.worker.consts import (
+    STATUS_QUEUED,
+)
 
-STATUS_QUEUED = "queued"
-STATUS_RUNNING = "running"
-STATUS_DONE = "done"
-STATUS_ERROR = "error"
-STATUS_TIMEOUT = "timeout"
-STATUS_SEARCHING = "searching"
-STATUS_LINKING = "linking"
 
 
 @dataclass
 class JobProgress:
-    """Poll payload: ``{done, total, status}``."""
+    """
+    This class represents the payload of the running job (done, total, status).
+    """
 
     done: int = 0
     total: int = 0
     status: str = STATUS_QUEUED
 
-    def as_dict(self) -> dict[str, int | str]:
+    def as_dict(self) -> Dict[str, Union[int, str]]:
         return {"done": self.done, "total": self.total, "status": self.status}
-
 
 @dataclass
 class JobRecord:
-    """One linkage job. Does not store the raw paste after create."""
+    """
+    This is the record for one linkage job, it does not store any data after its creation.
+    """
 
     id: str
     status: str
@@ -49,46 +55,57 @@ class JobRecord:
     created_at: float = 0.0
     updated_at: float = 0.0
     warnings: List[str] = field(default_factory=list)
-    results: List[dict[str, Any]] | None = None
-    error: str | None = None
+    results: Optional[List[Dict[str, Any]]] = None
+    error: Optional[str] = None
 
 
 class JobStore(ABC):
-    """Create / read / update jobs. Expired records are treated as missing."""
+    """
+    This class allows to create, read or update jobs and expired records
+    are treated as missing.
+    """
 
     @abstractmethod
     def create(self, job: JobRecord) -> None:
-        """Insert ``job``. Pre: ``job.id`` is unique."""
+        """
+        This function allows to create a job, where job.id is unique. 
+        """
 
     @abstractmethod
-    def get(self, job_id: str) -> JobRecord | None:
-        """Return a copy, or None if missing/expired."""
+    def get(self, job_id: str) -> Optional[JobRecord]:
+        """
+        This function returns a copy of a job or None if it expired or it is missing.
+        """
 
     @abstractmethod
     def update(
         self,
         job_id: str,
         *,
-        status: str | None = None,
+        status: Optional[str] = None,
         progress: JobProgress | None = None,
-        warnings: List[str] | None = None,
-        results: List[dict[str, Any]] | None = None,
-        error: str | None = None,
-    ) -> JobRecord | None:
-        """Patch fields on an existing job. None if missing/expired."""
+        warnings: Optional[List[str]] = None,
+        results: Optional[List[Dict[str, Any]]] = None,
+        error: Optional[str] = None,
+    ) -> Optional[JobRecord]:
+        """
+        This function allows to patch fields on an existing job. 
+        It returns None if the job is missing or it has expired.
+        """
 
 
 class InMemoryJobStore(JobStore):
-    """Process-local dict with ``JOB_TTL_SECONDS`` eviction.
-
-    Not shared across replicas — swap for RedisJobStore without API changes.
+    """
+    This class is a process-local dict with job_ttl_seconds timeline. It is not 
+    shared across replicas. This is the previous version for a future Redis database 
+    for distributed computing, in case we need to scale this.
     """
 
     def __init__(
         self,
         ttl_s: int = JOB_TTL_SECONDS,
         *,
-        now: Callable[[], float] | None = None,
+        now: Optional[Callable[[], float]] = None,
     ) -> None:
         self._ttl_s = ttl_s
         self._now = now or time.monotonic
@@ -103,7 +120,7 @@ class InMemoryJobStore(JobStore):
             job.updated_at = now
             self._jobs[job.id] = job
 
-    def get(self, job_id: str) -> JobRecord | None:
+    def get(self, job_id: str) -> Optional[JobRecord]:
         with self._lock:
             self._purge_unlocked()
             job = self._jobs.get(job_id)
@@ -115,12 +132,12 @@ class InMemoryJobStore(JobStore):
         self,
         job_id: str,
         *,
-        status: str | None = None,
-        progress: JobProgress | None = None,
-        warnings: List[str] | None = None,
-        results: List[dict[str, Any]] | None = None,
-        error: str | None = None,
-    ) -> JobRecord | None:
+        status: Optional[str] = None,
+        progress: Optional[JobProgress] = None,
+        warnings: Optional[List[str]] = None,
+        results: Optional[List[Dict[str, Any]]] = None,
+        error: Optional[str] = None,
+    ) -> Optional[JobRecord]:
         with self._lock:
             self._purge_unlocked()
             job = self._jobs.get(job_id)

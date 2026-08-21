@@ -1,5 +1,3 @@
-"""Candidate products with stage flags and similarity scores."""
-
 from typing import Any, Dict, Type
 
 import polars as pl

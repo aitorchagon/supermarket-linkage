@@ -1,7 +1,13 @@
-"""Offline catalog client for ``USE_SAMPLE_CATALOG=1`` (no Mercadona HTTP)."""
+"Offline catalog client for testing"
 
 from __future__ import annotations
 
+from typing import (
+    List,
+    Set,
+    Optional,
+    Union,
+)
 import json
 import os
 from typing import Sequence
@@ -16,7 +22,9 @@ from supermarket_linkage.schemas.product_table import ProductColumns, ProductTab
 
 
 def default_sample_catalog_path() -> Path:
-    """Resolve fixture path from env, then repo ``tests/fixtures``."""
+    """
+    This function allows to resolve a fixture path from env, then goes to tests/fixtures.
+    """
     env = os.environ.get("SAMPLE_CATALOG_PATH", "").strip()
     if env:
         return Path(env)
@@ -35,8 +43,9 @@ def default_sample_catalog_path() -> Path:
     )
 
 
-def load_sample_catalog(path: Path | None = None) -> pl.DataFrame:
-    """Load Mercadona-shaped products and fill price/kg."""
+def load_sample_catalog(path: Optional[Path] = None) -> pl.DataFrame:
+    """
+    This function loads Mercadona-shaped products and fill price per kg."""
     target = path or default_sample_catalog_path()
     raw = json.loads(target.read_text(encoding="utf-8"))
     df = ProductTable.enforce_schema(pl.DataFrame(raw))
@@ -44,9 +53,11 @@ def load_sample_catalog(path: Path | None = None) -> pl.DataFrame:
 
 
 class SampleCatalogClient(BaseCatalogClient):
-    """Token-subset search over a static catalog JSON."""
+    """
+    This client allows for a token-subset search over a static JSON catalog.
+    """
 
-    def __init__(self, path: str | Path | None = None) -> None:
+    def __init__(self, path: Optional[Union[str, Path]] = None) -> None:
         resolved = Path(path) if path else None
         self._catalog = load_sample_catalog(resolved)
         self._name_tokens: List[Set[str]] = [
@@ -54,20 +65,23 @@ class SampleCatalogClient(BaseCatalogClient):
             for name in self._catalog[ProductColumns.NAME].to_list()
         ]
 
-    def search(self, query: str, *, postal_code: str | None = None) -> pl.DataFrame:
+    def search(self, query: str, *, postal_code: Optional[str] = None) -> pl.DataFrame:
+        """
+        We delete the postal code and perform a search over the batch.
+        """
         del postal_code
-        return self.search_batch([query])
+        return self.search_products([query])
 
-    def search_batch(
+    def search_products(
         self,
         queries: Sequence[str],
         *,
-        postal_code: str | None = None,
+        postal_code: Optional[str] = None,
     ) -> pl.DataFrame:
-        """Match products whose name tokens contain all query tokens.
-
-        Pre: ``queries`` are search strings (raw or already normalized).
-        Post: ProductTable rows; ``source_query`` is ``extract_search_query(q)``.
+        """
+        This function allows to match products whose name tokens contain all query tokens.
+        The queries are search strings (raw or already normalized); the function returns ProductTable
+        rows.
         """
         del postal_code
         frames: List[pl.DataFrame] = []
@@ -75,12 +89,17 @@ class SampleCatalogClient(BaseCatalogClient):
             if not raw or not str(raw).strip():
                 continue
             q_norm = extract_search_query(str(raw))
-            frames.append(self._search_one(q_norm))
+            frames.append(self._search_product(q_norm))
         if not frames:
             return ProductTable.as_empty_dataframe()
         return ProductTable.enforce_schema(pl.concat(frames, how="diagonal"))
 
-    def _search_one(self, query_norm: str) -> pl.DataFrame:
+    def _search_product(self, query_norm: str) -> pl.DataFrame:
+        """
+        This function allows to match a prodyc whose name tokens contain all query tokens.
+        The queries are search strings (raw or already normalized); the function returns ProductTable
+        rows.
+        """
         tokens = [t for t in query_norm.split() if t]
         if not tokens:
             return ProductTable.as_empty_dataframe()

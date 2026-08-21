@@ -1,5 +1,3 @@
-"""Unit tests for MercadonaPromoPolicy."""
-
 from supermarket_linkage.catalog.promo_policy import MercadonaPromoPolicy
 from supermarket_linkage.schemas.product_table import ProductColumns
 

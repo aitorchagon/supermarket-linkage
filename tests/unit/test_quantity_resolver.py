@@ -1,5 +1,3 @@
-"""Unit tests for QuantityResolver."""
-
 import polars as pl
 
 from supermarket_linkage.preprocessors.quantity_resolver import (

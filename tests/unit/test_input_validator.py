@@ -1,5 +1,3 @@
-"""Unit tests for InputValidator and postal-code checks."""
-
 from supermarket_linkage.consts import (
     MAX_LINE_LENGTH,
     MAX_LINES,
@@ -7,7 +5,7 @@ from supermarket_linkage.consts import (
     WARN_LINES,
 )
 from supermarket_linkage.validation.input_validator import InputValidator
-from supermarket_linkage.validation.postal_code_validator import is_valid_postal_code
+from supermarket_linkage.validation.input_validator import is_valid_postal_code
 
 
 def test_accepts_single_line() -> None:

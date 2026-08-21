@@ -1,5 +1,3 @@
-"""Unit tests for DistanceStage (polars-distance JW)."""
-
 import polars as pl
 
 from supermarket_linkage.consts import JW_MAX_DISTANCE

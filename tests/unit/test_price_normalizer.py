@@ -1,5 +1,3 @@
-"""Unit tests for PriceNormalizer."""
-
 import polars as pl
 
 from supermarket_linkage.preprocessors.price_normalizer import (

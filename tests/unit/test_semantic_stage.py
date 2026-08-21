@@ -1,5 +1,3 @@
-"""Unit tests for SemanticStage with mock vectors (no model download)."""
-
 from __future__ import annotations
 
 from typing import Sequence

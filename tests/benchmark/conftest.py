@@ -1,5 +1,3 @@
-"""Latency fixtures: sample catalog and mocked Mercadona HTTP."""
-
 from __future__ import annotations
 
 from typing import Iterator

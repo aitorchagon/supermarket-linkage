@@ -1,12 +1,3 @@
-"""FastAPI worker: ``/health``, ``/warmup``, ``/jobs``.
-
-Run: ``uvicorn supermarket_linkage.worker.api:app``
-
-Optional auth: if ``WORKER_API_KEY`` is set, send it as ``X-API-Key``,
-``WORKER-API-KEY``, or ``WORKER_API_KEY``. Unset key → open (local sample).
-``GET /health`` stays unauthenticated so the master can poll readiness.
-"""
-
 from __future__ import annotations
 
 import hmac
@@ -15,7 +6,10 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import (
     Any,
-    AsyncIterator,
+    AsyncGenerator,
+    List,
+    Optional,
+    Dict,
 )
 
 from fastapi import (
@@ -28,7 +22,7 @@ from fastapi import (
 from pydantic import BaseModel, Field
 
 from supermarket_linkage.catalog.base_catalog_client import BaseCatalogClient
-from supermarket_linkage.validation.postal_code_validator import is_valid_postal_code
+from supermarket_linkage.validation.input_validator import is_valid_postal_code
 from supermarket_linkage.worker.job_orchestrator import (
     JobOrchestrator,
     JobSpec,
@@ -45,17 +39,14 @@ from supermarket_linkage.worker.rate_limiter import RateLimiter
 from supermarket_linkage.worker.sample_catalog import SampleCatalogClient
 from supermarket_linkage.worker.settings import WorkerSettings
 from supermarket_linkage.worker.warmup import ModelRegistry
+from supermarket_linkage.worker.consts import API_KEY_HEADERS
 
 log = logging.getLogger(__name__)
-
-# Hyphen and underscore forms: DESIGN "WORKER_API_KEY header"; Chat 7 X-API-Key.
-API_KEY_HEADERS = ("x-api-key", "worker-api-key", "worker_api_key")
-
 
 class JobCreateBody(BaseModel):
     text: str
     store: str = "mercadona"
-    postal_code: str | None = None
+    postal_code: Optional[str] = None
     is_promo_member: bool = False
 
 
@@ -77,41 +68,51 @@ class JobGetResponse(BaseModel):
     status: str
     progress: ProgressBody
     warnings: List[str] = Field(default_factory=list)
-    results: List[dict[str, Any]] | None = None
-    error: str | None = None
+    results: Optional[List[Dict[str, Any]]] = None
+    error: Optional[str] = None
 
 
 def create_app(
     *,
-    settings: WorkerSettings | None = None,
-    job_store: JobStore | None = None,
-    rate_limiter: RateLimiter | None = None,
-    model_registry: ModelRegistry | None = None,
-    catalog_client: BaseCatalogClient | None = None,
+    settings: Optional[WorkerSettings] = None,
+    job_store: Optional[JobStore] = None,
+    rate_limiter: Optional[RateLimiter] = None,
+    model_registry: Optional[ModelRegistry] = None,
+    catalog_client: Optional[BaseCatalogClient] = None,
 ) -> FastAPI:
-    """Build the worker app. Tests inject store / limiter / registry / catalog."""
-    cfg = settings or WorkerSettings.from_env()
-    store = job_store or InMemoryJobStore(ttl_s=cfg.job_ttl_s)
+    """
+    This function allows to build the worker app. 
+    The tests inject store / limiter / registry / catalog.
+    """
+    worker_settings = settings or WorkerSettings.from_env()
+    store = job_store or InMemoryJobStore(ttl_s=worker_settings.job_ttl_s)
     limiter = rate_limiter or RateLimiter()
-    backend = "sample" if cfg.use_sample_catalog else "sentence-transformers"
+    backend = "sample" if worker_settings.use_sample_catalog else "sentence-transformers"
     registry = model_registry or ModelRegistry(backend=backend)
 
     client = catalog_client
-    if client is None and cfg.use_sample_catalog:
-        client = SampleCatalogClient(cfg.sample_catalog_path)
+    if client is None and worker_settings.use_sample_catalog:
+        client = SampleCatalogClient(worker_settings.sample_catalog_path)
 
     orch = JobOrchestrator(
         store,
         embedder_provider=registry.get,
         catalog_client=client,
-        use_sample_catalog=cfg.use_sample_catalog,
-        sample_catalog_path=cfg.sample_catalog_path,
-        job_timeout_s=cfg.job_timeout_s,
+        use_sample_catalog=worker_settings.use_sample_catalog,
+        sample_catalog_path=worker_settings.sample_catalog_path,
+        job_timeout_s=worker_settings.job_timeout_s,
     )
-
+    # so we can guarantee that resources are initialized when we start
+    # and are libreated when we get out without blocking the event loop
+    # equivalent to async with, but using functions (async def plus the decorator)
     @asynccontextmanager
-    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-        if not cfg.skip_model_preload:
+    async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
+        """
+        This function allows to check whether we have preloaded our embedder or we have to lazy-load it
+        to warm up the processes. Especially useful at the beginning, or if there has been a while since a user has not
+        used the platform.
+        """
+        if not worker_settings.skip_model_preload:
             try:
                 registry.preload()
                 log.info("embedder preloaded backend=%s", registry.backend)
@@ -120,13 +121,17 @@ def create_app(
         yield
 
     app = FastAPI(title="supermarket-linkage-worker", lifespan=lifespan)
-    app.state.settings = cfg
+    app.state.settings = worker_settings
     app.state.job_store = store
     app.state.rate_limiter = limiter
     app.state.model_registry = registry
     app.state.orchestrator = orch
 
     def require_api_key(request: Request) -> None:
+        """
+        This function requires an API key to the supermarket API and raises
+        an Exception if it is not provided.
+        """
         expected = request.app.state.settings.api_key
         if not expected:
             return
@@ -139,14 +144,19 @@ def create_app(
             raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
     def client_ip(request: Request) -> str:
-        # Do not trust X-Forwarded-For: the master is the TCP peer, and a
-        # spoofed header would bypass per-IP warmup/job caps on an open URL.
+        # We do not trust X-Forwarded-For to avoid a person to overpass the number of 
+        # petitions per IP that we have establisched. We do not read the metadata from the petition but the IP.
+        # If the socket information is not provided, we return 'unknown'.
         if request.client and request.client.host:
             return request.client.host
         return "unknown"
 
     @app.get("/health")
-    def health(request: Request) -> dict[str, Any]:
+    def health(request: Request) -> Dict[str, Any]:
+        """
+        This function returns whether the model is warmup, whether we are in test mode (use_sample_catalog) for offline
+        tests and the status (by default ok).
+        """
         reg: ModelRegistry = request.app.state.model_registry
         st: WorkerSettings = request.app.state.settings
         return {
@@ -156,7 +166,10 @@ def create_app(
         }
 
     @app.post("/warmup", dependencies=[Depends(require_api_key)])
-    def warmup(request: Request) -> dict[str, Any]:
+    def warmup(request: Request) -> Dict[str, Any]:
+        """
+        This function allows to perform the operation of warmup, and start the job if the model is not warm.
+        """
         ip = client_ip(request)
         limiter_inst: RateLimiter = request.app.state.rate_limiter
         if not limiter_inst.allow_warmup(ip):
@@ -175,6 +188,9 @@ def create_app(
         request: Request,
         background_tasks: BackgroundTasks,
     ) -> JobCreateResponse:
+        """
+        This function allows to create the job to warm up the model.
+        """
         orch_inst: JobOrchestrator = request.app.state.orchestrator
         limiter_inst: RateLimiter = request.app.state.rate_limiter
         store_inst: JobStore = request.app.state.job_store
@@ -235,6 +251,10 @@ def create_app(
 
     @app.get("/jobs/{job_id}", dependencies=[Depends(require_api_key)])
     def get_job(job_id: str, request: Request) -> JobGetResponse:
+        """
+        This function allows to get the job information to check the progress, whether it 
+        has failed or whether it has finished.
+        """
         store_inst: JobStore = request.app.state.job_store
         job = store_inst.get(job_id)
         if job is None:

@@ -1,13 +1,15 @@
-"""Run one job: validate → dedupe → search_batch → linkage, with progress.
-
-Never log the full paste (Decision 14). Time out after ``JOB_TIMEOUT_SECONDS``.
-"""
-
 from __future__ import annotations
 
 import logging
 import time
-from typing import Callable, Sequence
+from typing import (
+    Callable, 
+    Sequence,
+    Tuple,
+    Optional,
+    Dict,
+    List,
+)
 from dataclasses import dataclass
 
 import polars as pl
@@ -23,14 +25,16 @@ from supermarket_linkage.schemas.line_result_table import LineResultColumns, Lin
 from supermarket_linkage.schemas.product_table import ProductColumns, ProductTable
 from supermarket_linkage.validation.input_validator import InputValidator, ValidationResult
 from supermarket_linkage.worker.job_store import (
+    JobProgress,
+    JobStore,
+)
+from supermarket_linkage.worker.consts import (
     STATUS_DONE,
     STATUS_ERROR,
     STATUS_LINKING,
     STATUS_RUNNING,
     STATUS_SEARCHING,
     STATUS_TIMEOUT,
-    JobProgress,
-    JobStore,
 )
 from supermarket_linkage.worker.sample_catalog import SampleCatalogClient
 
@@ -38,56 +42,60 @@ log = logging.getLogger(__name__)
 
 
 class JobTimeoutError(Exception):
-    """Job exceeded ``JOB_TIMEOUT_SECONDS``."""
+    """Job exceeded job_timeout seconds."""
 
 
 @dataclass(frozen=True)
 class JobSpec:
-    """Validated job payload. ``lines`` only — not the raw paste."""
+    """
+    This is a validated job payload
+    """
 
-    lines: Tuple[str, ...]
+    lines: Tuple[str]
     store: str
-    postal_code: str | None
+    postal_code: Optional[str]
     is_promo_member: bool
-    warnings: Tuple[str, ...] = ()
-
+    warnings: Tuple[str] = ()
 
 class JobOrchestrator:
-    """Drive catalog fetch + linkage and write progress to ``JobStore``."""
+    """
+    This orchestrator allows to drive the catalog fetch from the store and the record linkage
+    while writing the progress to JobStore.
+    """
 
     def __init__(
         self,
         job_store: JobStore,
         *,
         embedder_provider: Callable[[], Embedder],
-        catalog_client: BaseCatalogClient | None = None,
+        catalog_client: Optional[BaseCatalogClient] = None,
         use_sample_catalog: bool = False,
-        sample_catalog_path: str | None = None,
+        sample_catalog_path: Optional[str] = None,
         job_timeout_s: int = JOB_TIMEOUT_SECONDS,
-        promo_policy: PromoPolicy | None = None,
-        now: Callable[[], float] | None = None,
+        promo_policy: Optional[PromoPolicy] = None,
+        now: Optional[Callable[[], float]] = None,
     ) -> None:
         self._store = job_store
         self._embedder_provider = embedder_provider
         self._fixed_client = catalog_client
         self._use_sample = use_sample_catalog
         self._sample_path = sample_catalog_path
-        self._sample_client: SampleCatalogClient | None = None
-        self._live_clients: dict[str, BaseCatalogClient] = {}
+        self._sample_client: Optional[SampleCatalogClient] = None
+        self._live_clients: Dict[str, BaseCatalogClient] = {}
         self._timeout_s = job_timeout_s
         self._promo = promo_policy or MercadonaPromoPolicy()
         self._now = now or time.monotonic
         self._validator = InputValidator()
 
     def validate_text(self, text: str) -> ValidationResult:
-        """Sanitize paste. Callers must not log ``text``."""
+        """
+        This function allows to sanitize the pasted text."""
         return self._validator.validate(text)
 
     def run(self, job_id: str, spec: JobSpec) -> None:
-        """Execute ``spec``. Caller releases the rate-limit slot.
-
-        Pre: ``spec.lines`` already passed ``InputValidator``.
-        Post: job is ``done``, ``error``, or ``timeout``. Paste is not stored.
+        """
+        The caller releases the rate-limit slot and we execute the specified job. Job can be
+        done, error or timeout, pasted text is not stored.
         """
         n = len(spec.lines)
         deadline = self._now() + self._timeout_s
@@ -115,7 +123,6 @@ class JobOrchestrator:
                 error=f"Job exceeded {self._timeout_s}s.",
             )
         except Exception:
-            # Do not include paste or line text in the log message.
             log.exception("job %s failed store=%s line_count=%s", job_id, spec.store, n)
             self._store.update(
                 job_id,
@@ -130,18 +137,21 @@ class JobOrchestrator:
         spec: JobSpec,
         *,
         deadline: float,
-    ) -> List[dict[str, object]]:
+    ) -> List[Dict[str, object]]:
         self._check_deadline(deadline)
         query_norms = [extract_search_query(line) for line in spec.lines]
         unique = list(dict.fromkeys(q for q in query_norms if q))
 
-        client = self._client_for(spec.store)
-        hits = client.search_batch(unique, postal_code=spec.postal_code)
-        by_query = _split_hits(hits, unique)
+        client = self._create_client(spec.store)
+        hits = client.search_batch(
+            queries=unique, 
+            postal_code=spec.postal_code,
+        )
+        hits_by_query = _split_hits(hits=hits, unique=unique)
 
-        self._check_deadline(deadline)
+        self._check_deadline(deadline=deadline)
         self._store.update(
-            job_id,
+            job_id=job_id,
             status=STATUS_RUNNING,
             progress=JobProgress(done=0, total=len(spec.lines), status=STATUS_LINKING),
         )
@@ -149,21 +159,25 @@ class JobOrchestrator:
         embedder = self._embedder_provider()
         linkage = LinkageOrchestrator(embedder=embedder, store=spec.store)
         frames: List[pl.DataFrame] = []
-        for i, (line, q_norm) in enumerate(zip(spec.lines, query_norms, strict=True)):
+        for i, (line, normalized_query) in enumerate(zip(spec.lines, query_norms, strict=True)):
             self._check_deadline(deadline)
-            products = by_query.get(q_norm)
+            products = hits_by_query.get(normalized_query)
             if products is None:
                 products = ProductTable.as_empty_dataframe()
             result = linkage.link_line(
-                line,
-                products,
+                query=line,
+                products=products,
                 line_index=i,
-                query_norm=q_norm,
+                query_norm=normalized_query,
             )
-            result = _apply_promo(result, spec.is_promo_member, self._promo)
+            result = _apply_promo(
+                result=result, 
+                is_promo_member=spec.is_promo_member, 
+                policy=self._promo,
+            )
             frames.append(result)
             self._store.update(
-                job_id,
+                job_id=job_id,
                 status=STATUS_RUNNING,
                 progress=JobProgress(
                     done=i + 1,
@@ -174,10 +188,18 @@ class JobOrchestrator:
 
         if not frames:
             return []
+        # not a fan of concatenating things using 'diagonal' or 'diagonal_relaxed' but we enforce
+        # the schema afterwards.
         out = LineResultTable.enforce_schema(pl.concat(frames, how="diagonal_relaxed"))
         return out.to_dicts()
 
-    def _client_for(self, store: str) -> BaseCatalogClient:
+    def _create_client(self, store: str) -> BaseCatalogClient:
+        """
+        If there is a static client at the instance level, we return it immediately (useful for unitary tests)
+        If use_sample is activteed, we return SampleCatalogClient (same, for unitary tests)
+        If we have an already live client, we reuse it.
+        Otherwise, we create a client using the factory and we save it in live_clients.
+        """
         if self._fixed_client is not None:
             return self._fixed_client
         if self._use_sample:
@@ -197,14 +219,21 @@ class JobOrchestrator:
 
 
 def assert_supported_store(store: str) -> str:
-    """Normalize store id or raise ``ValueError``."""
+    """
+    We normalize the store id; if the store id is not found we raise ValueError.
+    """
+    
     key = store.strip().lower()
     if key not in SUPPORTED_STORES:
         raise ValueError(f"Store {store!r} is not available in v1.")
     return key
 
 
-def _split_hits(hits: pl.DataFrame, unique: Sequence[str]) -> dict[str, pl.DataFrame]:
+def _split_hits(hits: pl.DataFrame, unique: Sequence[str]) -> Dict[str, pl.DataFrame]:
+    """
+    We retrieve the polars DataFrame hits and we divide it into a dictionary of smaller dataframes, using
+    unique products.
+    """
     if hits.height == 0:
         return {q: ProductTable.as_empty_dataframe() for q in unique}
     out: dict[str, pl.DataFrame] = {}
@@ -224,9 +253,11 @@ def _apply_promo(
     is_promo_member: bool,
     policy: PromoPolicy,
 ) -> pl.DataFrame:
-    """Set effective pack price and line total from ``PromoPolicy``."""
-    effective: List[float | None] = []
-    totals: List[float | None] = []
+    """
+    We set an effective pack price and total lines from PromoPolicy.
+    """
+    effective: List[Optional[float]] = []
+    totals: List[Optional[float]] = []
     for row in result.iter_rows(named=True):
         price = policy.effective_price(row, is_promo_member)
         units = row.get(LineResultColumns.UNITS_NEEDED)
