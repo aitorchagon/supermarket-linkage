@@ -28,7 +28,7 @@ class _TokenOverlapEmbedder:
         self._vocab: Dict[str, int] = {}
 
     def _tokens(self, text: str) -> List[str]:
-        return [t for t in (text or "").split() if t.isalpha() and t not in _SKIP]
+        return [t for t in (text or "").lower().split() if t.isalpha() and t not in _SKIP]
 
     def embed(self, texts: List[str]):
     

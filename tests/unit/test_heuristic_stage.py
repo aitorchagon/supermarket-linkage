@@ -16,6 +16,16 @@ def test_heuristic_rejects_partial_tokens() -> None:
     assert heuristic_pass("arroz basmati", "arroz redondo") is False
 
 
+def test_heuristic_rejects_dish_that_merely_contains_product() -> None:
+    assert (
+        heuristic_pass(
+            "arroz basmati",
+            "pollo curry hacendado arroz basmati bandeja",
+        )
+        is False
+    )
+
+
 def test_heuristic_rejects_empty() -> None:
     assert heuristic_pass("", "arroz") is False
     assert heuristic_pass("arroz", "") is False

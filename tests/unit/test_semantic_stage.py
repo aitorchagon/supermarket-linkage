@@ -35,13 +35,16 @@ def test_semantic_stage_keeps_above_threshold() -> None:
         {
             "arroz basmati": np.array([1.0, 0.0, 0.0, 0.0]),
             "arroz basmati 1 kg": np.array([0.9, 0.1, 0.0, 0.0]),
+            "Arroz basmati 1 kg": np.array([0.9, 0.1, 0.0, 0.0]),
             "leche entera 1 l": np.array([0.0, 0.0, 1.0, 0.0]),
+            "Leche entera 1 l": np.array([0.0, 0.0, 1.0, 0.0]),
         }
     )
     # Cosine(q, good) ≈ 0.994; cosine(q, bad) = 0.
     df = pl.DataFrame(
         {
             CandidateColumns.PRODUCT_ID: ["good", "bad"],
+            CandidateColumns.NAME: ["Arroz basmati 1 kg", "Leche entera 1 l"],
             CandidateColumns.NAME_NORM: ["arroz basmati 1 kg", "leche entera 1 l"],
             CandidateColumns.QUERY_NORM: ["arroz basmati", "arroz basmati"],
         }
