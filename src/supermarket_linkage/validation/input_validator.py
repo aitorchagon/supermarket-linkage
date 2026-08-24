@@ -12,7 +12,7 @@ from supermarket_linkage.consts import (
     MIN_LINE_LENGTH,
     WARN_LINES,
 )
-from supermarket_linkage.regex_consts import CONTROL_CHARS, POSTAL_CODE
+from supermarket_linkage.regex_consts import CONTROL_CHARS, POSTAL_CODE, QUANTITY
 
 
 def is_valid_postal_code(code: str) -> bool:
@@ -92,6 +92,12 @@ class InputValidator:
         if len(lines) > WARN_LINES:
             warnings.append(
                 f"Long list ({len(lines)} lines); processing may take minutes."
+            )
+        multi_qty = [line for line in lines if len(QUANTITY.findall(line)) >= 2]
+        if multi_qty:
+            warnings.append(
+                "Parece que hay más de un producto en la misma línea. "
+                "Pon un producto por línea (Enter entre ellos)."
             )
 
         return ValidationResult(ok=True, lines=lines, warnings=warnings)

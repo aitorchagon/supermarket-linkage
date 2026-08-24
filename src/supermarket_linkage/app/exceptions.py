@@ -29,9 +29,24 @@ def _error_message(response: httpx.Response) -> str:
     if response.status_code == 401:
         return "Clave de API inválida o ausente."
     if response.status_code == 429:
-        return "Límite de peticiones del worker (429). Prueba más tarde."
+        return (
+            "Demasiadas búsquedas en poco tiempo. Espera un minuto e inténtalo de nuevo."
+        )
     if response.status_code == 404:
-        return "Job no encontrado (¿expiró el TTL?)."
+        return (
+            "Ese resultado ya no está disponible (el servidor se reinició o pasó demasiado "
+            "tiempo). Pulsa Emparejar otra vez."
+        )
     if detail:
+        # Map worker jargon to Spanish UX copy when possible.
+        low = detail.lower()
+        if "rate limit" in low:
+            return (
+                "Demasiadas búsquedas en poco tiempo. Espera un minuto e inténtalo de nuevo."
+            )
+        if "job not found" in low:
+            return (
+                "Ese resultado ya no está disponible. Pulsa Emparejar otra vez."
+            )
         return detail
-    return f"Worker HTTP {response.status_code}."
+    return f"Error del worker (HTTP {response.status_code})."

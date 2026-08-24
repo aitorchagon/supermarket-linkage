@@ -17,9 +17,11 @@ JOB_TIMEOUT_SECONDS: int = 600
 JOB_TTL_SECONDS: int = 3600
 
 # --- Rate limits (per client IP, in-process) ---
-MAX_WARMUP_PER_HOUR: int = 10
-MAX_JOBS_PER_HOUR: int = 5
-MAX_CONCURRENT_JOBS_PER_IP: int = 1
+# Streamlit Cloud shares one egress IP for all shoppers, so these must be
+# high enough for a personal demo. Abuse is still gated by WORKER_API_KEY.
+MAX_WARMUP_PER_HOUR: int = 60
+MAX_JOBS_PER_HOUR: int = 120
+MAX_CONCURRENT_JOBS_PER_IP: int = 3
 
 # --- Mercadona HTTP hosts and URLs ---
 MERCADONA_API_BASE: str = "https://tienda.mercadona.es/api"

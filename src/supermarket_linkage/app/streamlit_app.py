@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import sys
 import time
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from datetime import timedelta
 from pathlib import Path
-from typing import Any
 
 
 _SRC = Path(__file__).resolve().parents[2]
@@ -252,6 +251,7 @@ def main() -> None:
         height=220,
         placeholder="arroz basmati 1500 g\nleche entera 1l",
         key="list_text",
+        help="Un producto por línea. Ejemplo: primera línea «arroz basmati 1500 g», segunda «leche entera 1l».",
     )
     _apply_upload()
 
@@ -281,6 +281,10 @@ def main() -> None:
 
     if st.button("Emparejar", type="primary", disabled=not can_match):
         assert validated is not None
+        # Always start clean so a previous error / 404 cannot trap the UI.
+        st.session_state.job_error = None
+        st.session_state.results = None
+        st.session_state.job_id = None
         try:
             created = client.create_job(
                 text,
@@ -290,10 +294,11 @@ def main() -> None:
             )
             st.session_state.job_id = created["id"]
             st.session_state.job_warnings = created.get("warnings") or []
-            st.session_state.results = None
-            st.session_state.job_error = None
+            st.session_state.matched_count = None
+            st.session_state.no_match_count = None
+            st.session_state.unmatched_queries = []
         except WorkerError as exc:
-            st.error(str(exc))
+            st.session_state.job_error = str(exc)
 
     job_id = st.session_state.get("job_id")
     if job_id and st.session_state.get("results") is None and not st.session_state.get(
@@ -303,11 +308,14 @@ def main() -> None:
             _poll_job(client, job_id)
         except WorkerError as exc:
             st.session_state.job_error = str(exc)
+            # Drop dead job id so Emparejar can run again without "Nueva lista".
+            st.session_state.job_id = None
         st.rerun()
 
     if st.session_state.get("job_error"):
         st.error(st.session_state.job_error)
-        if st.button("Nueva lista"):
+        st.caption("Puedes corregir la lista y pulsar Emparejar otra vez.")
+        if st.button("Limpiar error"):
             st.session_state.job_id = None
             st.session_state.job_error = None
             st.session_state.results = None

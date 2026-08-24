@@ -172,7 +172,10 @@ def create_app(
         ip = client_ip(request)
         limiter_inst: RateLimiter = request.app.state.rate_limiter
         if not limiter_inst.allow_warmup(ip):
-            raise HTTPException(status_code=429, detail="Warmup rate limit exceeded")
+            raise HTTPException(
+                status_code=429,
+                detail="Demasiadas peticiones de arranque. Espera un minuto e inténtalo de nuevo.",
+            )
         reg: ModelRegistry = request.app.state.model_registry
         try:
             reg.preload()
@@ -210,7 +213,10 @@ def create_app(
             raise HTTPException(status_code=400, detail=validated.error or "Invalid input.")
 
         if not limiter_inst.consume_job(ip):
-            raise HTTPException(status_code=429, detail="Job rate limit exceeded")
+            raise HTTPException(
+                status_code=429,
+                detail="Demasiadas búsquedas en poco tiempo. Espera un minuto e inténtalo de nuevo.",
+            )
 
         job_id = uuid.uuid4().hex
         n = len(validated.lines)
