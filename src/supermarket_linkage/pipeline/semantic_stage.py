@@ -1,24 +1,23 @@
 from __future__ import annotations
 
 from typing import (
-    Protocol, 
-    Sequence, 
-    runtime_checkable,
     List,
+    Protocol,
+    Sequence,
+    runtime_checkable,
 )
 
 import numpy as np
-from numpy.typing import NDArray
 import polars as pl
+from numpy.typing import NDArray
 
 from supermarket_linkage.consts import SEMANTIC_THRESHOLD
 from supermarket_linkage.pipeline.base_stage import BaseStage
+from supermarket_linkage.preprocessors.text_normalizer import strip_accents
 from supermarket_linkage.schemas.candidate_table import CandidateColumns, CandidateTable
 
 
-@runtime_checkable  # to be able to apply isinstance, to check existence
-# we use protocol to check whether any of the embedder we are adding has the function embed,
-# because embedder is not a parent of any of them
+@runtime_checkable
 class Embedder(Protocol):
     """
     Convert texts to embedding vectors. Inject a mock in tests to avoid model download.
@@ -40,10 +39,23 @@ def cosine_similarity(a: NDArray[np.floating], b: NDArray[np.floating]) -> float
     return float(np.dot(a, b) / denom)
 
 
+def _name_embed_variants(name: str | None, name_norm: str | None) -> List[str]:
+    """
+    MiniLM is sensitive to casing/accents on some Spanish titles. Score the best
+    of display name, accent-stripped lowercase, and token name_norm.
+    """
+    variants: List[str] = []
+    if name:
+        variants.append(name)
+        variants.append(strip_accents(name).lower())
+    if name_norm:
+        variants.append(name_norm)
+    return list(dict.fromkeys(v for v in variants if v))
+
+
 class SemanticStage(BaseStage):
     """
-    This stage executes the semantic step, and allows to keep candidates whose cosine similarity
-    is higher or equal than SEMANTIC_THRESHOLD.
+    Keep candidates whose cosine similarity is >= SEMANTIC_THRESHOLD.
     """
 
     def __init__(
@@ -58,23 +70,40 @@ class SemanticStage(BaseStage):
         """
         Score cosine similarity and keep rows at or above the threshold.
 
-        Pre: ``query_norm`` and ``name_norm`` or ``name``; injectable embedder.
+        Pre: ``query_norm`` and ``name`` and/or ``name_norm``; injectable embedder.
         Post: CandidateTable filtered by ``semantic_score``.
         """
         if df.height == 0:
             return CandidateTable.enforce_schema(df)
 
-        name_col = (
-            CandidateColumns.NAME_NORM
-            if CandidateColumns.NAME_NORM in df.columns
-            else CandidateColumns.NAME
-        )
-
         queries = [q or "" for q in df[CandidateColumns.QUERY_NORM].to_list()]
-        names = [n or "" for n in df[name_col].to_list()]
+        raw_names = (
+            df[CandidateColumns.NAME].to_list()
+            if CandidateColumns.NAME in df.columns
+            else [None] * df.height
+        )
+        norm_names = (
+            df[CandidateColumns.NAME_NORM].to_list()
+            if CandidateColumns.NAME_NORM in df.columns
+            else [None] * df.height
+        )
+        per_row_variants = [
+            _name_embed_variants(
+                name if isinstance(name, str) else None,
+                norm if isinstance(norm, str) else None,
+            )
+            for name, norm in zip(raw_names, norm_names, strict=True)
+        ]
 
-        # One embed call for unique texts.
-        unique: List[str] = list(dict.fromkeys([*queries, *names]))
+        unique: List[str] = list(
+            dict.fromkeys(
+                [q for q in queries if q]
+                + [v for variants in per_row_variants for v in variants]
+            )
+        )
+        if not unique:
+            return CandidateTable.as_empty_dataframe()
+
         embeddings = np.asarray(self.embedder.embed(unique), dtype=np.float64)
         if embeddings.ndim != 2 or embeddings.shape[0] != len(unique):
             raise ValueError(
@@ -82,10 +111,16 @@ class SemanticStage(BaseStage):
             )
         by_text = {t: embeddings[i] for i, t in enumerate(unique)}
 
-        scores = [
-            cosine_similarity(by_text[q], by_text[n])
-            for q, n in zip(queries, names, strict=True)
-        ]
+        scores: List[float] = []
+        for query, variants in zip(queries, per_row_variants, strict=True):
+            if not query or query not in by_text or not variants:
+                scores.append(0.0)
+                continue
+            q_vec = by_text[query]
+            scores.append(
+                max(cosine_similarity(q_vec, by_text[v]) for v in variants if v in by_text)
+            )
+
         out = df.with_columns(
             pl.Series(CandidateColumns.SEMANTIC_SCORE, scores, dtype=pl.Float64)
         ).filter(pl.col(CandidateColumns.SEMANTIC_SCORE) >= self.threshold)

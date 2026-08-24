@@ -10,6 +10,9 @@ from supermarket_linkage.schemas.candidate_table import CandidateColumns, Candid
 def heuristic_pass(query_norm: str | None, name_norm: str | None) -> bool:
     """
     Exact normalized match, or all query tokens ⊆ name tokens.
+
+    The first query token must also be the first name token so dishes that
+    merely contain the product (e.g. «Pollo … con arroz basmati») do not pass.
     """
     query_normalized = (query_norm or "").strip()
     name_normalized = (name_norm or "").strip()
@@ -17,9 +20,14 @@ def heuristic_pass(query_norm: str | None, name_norm: str | None) -> bool:
         return False
     if query_normalized == name_normalized:
         return True
-    name_tokens = set(name_normalized.split())
+    name_tokens = name_normalized.split()
     query_tokens = query_normalized.split()
-    return bool(query_tokens) and all(token in name_tokens for token in query_tokens)
+    if not query_tokens or not name_tokens:
+        return False
+    if query_tokens[0] != name_tokens[0]:
+        return False
+    name_token_set = set(name_tokens)
+    return all(token in name_token_set for token in query_tokens)
 
 
 class HeuristicStage(BaseStage):

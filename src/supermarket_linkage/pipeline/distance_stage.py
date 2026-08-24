@@ -10,7 +10,15 @@ from supermarket_linkage.schemas.candidate_table import CandidateColumns, Candid
 
 
 class DistanceStage(BaseStage):
-    """Keep candidates with Jaro-Winkler distance strictly below ``JW_MAX_DISTANCE``."""
+    """
+    Score Jaro-Winkler and keep candidates that are close enough.
+
+    Live Mercadona titles are long (brand + packaging). Full-string JW against a
+    short query often exceeds ``JW_MAX_DISTANCE`` even when the heuristic already
+    proved every query token is in the name. Those rows are kept: JW is still
+    stored for ranking / tie-break. Semantic-only rows (no heuristic) still need
+    JW strictly below the cap (false-friend referee).
+    """
 
     def __init__(self, max_distance: float = JW_MAX_DISTANCE) -> None:
         self.max_distance = max_distance
@@ -20,7 +28,7 @@ class DistanceStage(BaseStage):
         Compute JW distance/similarity and filter.
 
         Pre: ``query_norm`` and ``name`` / ``name_norm``.
-        Post: CandidateTable with only rows under the distance cap.
+        Post: CandidateTable with JW fields; rows kept if JW < cap or heuristic_pass.
         """
         if df.height == 0:
             return CandidateTable.enforce_schema(df)
@@ -67,7 +75,11 @@ class DistanceStage(BaseStage):
             .drop(["_query", "_name"])
         )
 
-        corrected = distances.filter(
-            pl.col(CandidateColumns.JW_DISTANCE) < self.max_distance
-        )
-        return CandidateTable.enforce_schema(corrected)
+        close = pl.col(CandidateColumns.JW_DISTANCE) < self.max_distance
+        if CandidateColumns.HEURISTIC_PASS in distances.columns:
+            kept = distances.filter(
+                close | (pl.col(CandidateColumns.HEURISTIC_PASS) == True)  # noqa: E712
+            )
+        else:
+            kept = distances.filter(close)
+        return CandidateTable.enforce_schema(kept)

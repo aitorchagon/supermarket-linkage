@@ -113,4 +113,8 @@ def _build_embedder(backend: Backend) -> Embedder:
 
 
 def _tokens(text: str) -> List[str]:
-    return [t for t in (text or "").split() if t.isalpha() and t not in _SKIP_TOKENS]
+    return [
+        t
+        for t in (text or "").lower().split()
+        if t.isalpha() and t not in _SKIP_TOKENS
+    ]
