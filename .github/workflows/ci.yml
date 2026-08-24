@@ -51,7 +51,6 @@ jobs:
     name: Ruff (advisory)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Style debt is large; do not block merges until cleaned up.
     continue-on-error: true
 
     steps:
