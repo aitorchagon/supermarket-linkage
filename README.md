@@ -98,17 +98,64 @@ USE_SAMPLE_CATALOG=1
 
 ## Hugging Face Spaces (worker)
 
+Target hardware is **CPU Basic** (2 vCPU, 16 GB RAM, no GPU, no ZeroGPU). Playwright is not used.
+
+Creating a **Docker** Space may require a paid HF plan (PRO / Team / Enterprise). CPU Basic is still the right runtime.
+
+### Phase 2 — deploy checklist
+
+**0. Push deploy files** (root `Dockerfile` must be on `main` before the Space builds):
+
+```bash
+git add Dockerfile
+git commit -m "Add root Dockerfile for Hugging Face Spaces"
+git push origin main
+```
+
+**1. Worker (Hugging Face Space)**
+
+1. https://huggingface.co/new-space → SDK **Docker**, hardware **CPU Basic**, `app_port` **7860**.
+2. Link this GitHub repo (`aitorchagon/supermarket-linkage`) or push the Space git remote to the same tree.
+3. Space **Settings → Secrets**: `WORKER_API_KEY` = a long random string (same value you will put in Streamlit).
+4. Space **Settings → Variables** (choose one mode):
+   - **Production (live Mercadona):** do **not** set `USE_SAMPLE_CATALOG` (or set `0`).
+   - **Demo only:** `USE_SAMPLE_CATALOG=1`.
+5. Wait for the build. Open `https://<user>-<space>.hf.space/health` → expect `"status":"ok"`.
+6. Warmup (replace URL and key):
+
+```bash
+curl -sS -X POST "https://<user>-<space>.hf.space/warmup" -H "X-API-Key: YOUR_KEY"
+```
+
+**2. Master (Streamlit Community Cloud)**
+
+1. https://share.streamlit.io → New app → this GitHub repo, branch `main`.
+2. Main file: `src/supermarket_linkage/app/streamlit_app.py`.
+3. App **Settings → Secrets**:
+
+```toml
+WORKER_URL = "https://<user>-<space>.hf.space"
+WORKER_API_KEY = "same-string-as-HF-Space-secret"
+```
+
+4. Deploy. Confirm the UI shows the worker as ready, then run a short list.
+
+The slim file next to the app (`src/supermarket_linkage/app/requirements.txt`) keeps torch off Community Cloud.
+
+---
+
+## Hugging Face Spaces (worker) — details
+
 Target hardware is **CPU Basic** (2 vCPU, 16 GB RAM, no GPU, no hourly charge). Do not pick GPU or ZeroGPU. Playwright is not used.
 
 Creating a **Docker** Space requires a paid HF plan (PRO / Team / Enterprise). CPU Basic itself is still the right runtime: no CUDA torch, MiniLM fits in RAM.
 
 1. Create a **Docker** Space (`sdk: docker`, `app_port: 7860`).
-2. Spaces only looks for a file named `Dockerfile`. Copy this repo’s worker image file:
-   `cp Dockerfile.worker Dockerfile`
+2. Repo root must contain `Dockerfile` (same as `Dockerfile.worker`; already in this repo for Spaces).
 3. Push `Dockerfile`, `src/`, and `tests/fixtures/` (sample mode).
 4. Hardware: **CPU Basic**.
 5. Set **secret** `WORKER_API_KEY` (runtime env, not a public variable, not a Docker build-arg). For live Mercadona leave `USE_SAMPLE_CATALOG` unset; for a demo Space set variable `USE_SAMPLE_CATALOG=1`.
-6. The container must listen on `0.0.0.0:7860` (`Dockerfile.worker` already does).
+6. The container must listen on `0.0.0.0:7860` (`Dockerfile` / `Dockerfile.worker` already do).
 
 CPU Basic Spaces sleep when idle. First visit is a cold start (container boot + ~100 MB model in live mode). The Streamlit UI pre-warms `POST /warmup` and polls `/health`.
 
