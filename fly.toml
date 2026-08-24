@@ -1,0 +1,22 @@
+# fly.toml — supermarket-linkage worker (FastAPI + MiniLM)
+# In-memory jobs require exactly one always-on machine. Do not enable auto-stop.
+
+app = 'supermarket-linkage-worker'
+primary_region = 'cdg'
+
+[build]
+  dockerfile = 'Dockerfile.worker'
+
+[http_service]
+  internal_port = 7860
+  force_https = true
+  auto_stop_machines = 'off'
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+[[vm]]
+  memory = '2gb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 2048

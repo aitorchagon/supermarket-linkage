@@ -94,10 +94,23 @@ def _apply_upload() -> None:
 
 
 def _poll_job(client: WorkerClient, job_id: str) -> None:
+    status_box = st.empty()
     bar = st.progress(0, text="En cola…")
+    status_box.info("Emparejando… esto puede tardar unos segundos.")
     deadline = time.monotonic() + JOB_TIMEOUT_SECONDS
+    not_found_streak = 0
     while time.monotonic() < deadline:
-        body = client.get_job(job_id)
+        try:
+            body = client.get_job(job_id)
+            not_found_streak = 0
+        except WorkerError as exc:
+            # Brief 404s can happen right after create or during a rolling deploy.
+            if exc.status_code == 404 and not_found_streak < 6:
+                not_found_streak += 1
+                status_box.info("Preparando búsqueda…")
+                time.sleep(_POLL_INTERVAL_S)
+                continue
+            raise
         prog = body.get("progress") or {}
         done = int(prog.get("done") or 0)
         total = int(prog.get("total") or 0)
@@ -105,6 +118,7 @@ def _poll_job(client: WorkerClient, job_id: str) -> None:
         label = _PROGRESS_LABELS.get(status, status)
         frac = min(1.0, done / total) if total else 0.0
         bar.progress(frac, text=f"{done}/{total} — {label}")
+        status_box.info(f"Emparejando… {done}/{total} ({label})")
         job_status = str(body.get("status") or "")
         if job_status == "done":
             st.session_state.results = body.get("results") or []
@@ -113,14 +127,17 @@ def _poll_job(client: WorkerClient, job_id: str) -> None:
             st.session_state.no_match_count = body.get("no_match_count")
             st.session_state.unmatched_queries = body.get("unmatched_queries") or []
             st.session_state.job_error = None
+            status_box.empty()
             return
         if job_status in {"error", "timeout"}:
             st.session_state.job_error = body.get("error") or job_status
             st.session_state.results = None
+            status_box.empty()
             return
         time.sleep(_POLL_INTERVAL_S)
     st.session_state.job_error = f"Tiempo de espera agotado ({JOB_TIMEOUT_SECONDS}s)."
     st.session_state.results = None
+    status_box.empty()
 
 
 @st.fragment(run_every=timedelta(seconds=2))
@@ -285,20 +302,21 @@ def main() -> None:
         st.session_state.job_error = None
         st.session_state.results = None
         st.session_state.job_id = None
-        try:
-            created = client.create_job(
-                text,
-                store=store_id,
-                postal_code=postal,
-                is_promo_member=is_promo_member,
-            )
-            st.session_state.job_id = created["id"]
-            st.session_state.job_warnings = created.get("warnings") or []
-            st.session_state.matched_count = None
-            st.session_state.no_match_count = None
-            st.session_state.unmatched_queries = []
-        except WorkerError as exc:
-            st.session_state.job_error = str(exc)
+        with st.spinner("Enviando lista al worker…"):
+            try:
+                created = client.create_job(
+                    text,
+                    store=store_id,
+                    postal_code=postal,
+                    is_promo_member=is_promo_member,
+                )
+                st.session_state.job_id = created["id"]
+                st.session_state.job_warnings = created.get("warnings") or []
+                st.session_state.matched_count = None
+                st.session_state.no_match_count = None
+                st.session_state.unmatched_queries = []
+            except WorkerError as exc:
+                st.session_state.job_error = str(exc)
 
     job_id = st.session_state.get("job_id")
     if job_id and st.session_state.get("results") is None and not st.session_state.get(
