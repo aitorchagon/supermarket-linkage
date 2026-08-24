@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import sys
 import time
+from typing import List, Dict, Optional
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
-# Slim Community Cloud install (app/requirements.txt) does not pip-install the
-# package; keep `src/` on the path so this file still imports.
+
 _SRC = Path(__file__).resolve().parents[2]
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
@@ -36,8 +36,6 @@ from supermarket_linkage.app.streamlit_consts import (
     _STORE_LABELS,
     _STORE_ORDER,
     _PROGRESS_LABELS,
-    _COLD_START_MSG,
-    _PRIVACY_MSG,
     _RESULT_COLUMNS,
     _POLL_INTERVAL_S,
     _VALIDATOR,
@@ -63,7 +61,7 @@ def _config() -> MasterConfig:
 
 
 def _init_state() -> None:
-    defaults: dict[str, Any] = {
+    defaults: Dict[str, Any] = {
         "list_text": "",
         "_uploaded_id": None,
         "worker_warm": False,
@@ -135,24 +133,22 @@ def _worker_status_fragment(client: WorkerClient, worker_url: str) -> None:
     if latest is None:
         st.error(
             f"No se puede conectar al worker en `{worker_url}`. "
-            "Arráncalo en modo muestra: "
-            "`USE_SAMPLE_CATALOG=1 uv run uvicorn supermarket_linkage.worker.api:app`"
         )
     elif now_warm:
         sample = " (modo muestra)" if latest.get("use_sample_catalog") else ""
         st.success(f"Worker listo{sample}.")
     else:
-        st.info(_COLD_START_MSG)
+        pass
     if now_warm != prev:
         st.rerun(scope="app")
 
 
 def _render_results(
-    rows: list[dict[str, Any]],
+    rows: List[Dict[str, Any]],
     *,
-    matched_count: int | None = None,
-    no_match_count: int | None = None,
-    unmatched_queries: list[str] | None = None,
+    matched_count: Optional[int] = None,
+    no_match_count: Optional[int] = None,
+    unmatched_queries: Optional[List[str]] = None,
 ) -> None:
     st.subheader("Resultados")
     if matched_count is not None and no_match_count is not None:
@@ -165,7 +161,6 @@ def _render_results(
     display: list[dict[str, Any]] = []
     for row in rows:
         item = {col: row.get(col) for col in _RESULT_COLUMNS}
-        # Always surface a trusted Mercadona URL (export builder), not a raw/empty cell.
         item[LineResultColumns.PRODUCT_URL] = _EXPORT.product_url(row)
         display.append(item)
     column_config: dict[str, Any] = {}
@@ -179,9 +174,6 @@ def _render_results(
     st.dataframe(display, hide_index=True, use_container_width=True, column_config=column_config)
 
     st.subheader("Exportar lista")
-    st.caption(
-        "Enlaces públicos de la tienda, con cantidades. No inicia sesión ni escribe en el carrito."
-    )
     csv_text = _EXPORT.to_csv(rows)
     clip = _EXPORT.to_clipboard_text(rows)
     c1, c2 = st.columns(2)
@@ -228,7 +220,6 @@ def main() -> None:
     start_warmup_once(client)
 
     st.title("Lista de la compra → catálogo")
-    st.caption(_PRIVACY_MSG)
 
     health = client.health_or_none()
     st.session_state.worker_warm = bool(health and health.get("warm"))

@@ -41,18 +41,6 @@ _PROGRESS_LABELS: Dict[str, str] = {
     "timeout": "tiempo agotado",
 }
 
-_COLD_START_MSG = (
-    "El worker está arrancando (primera visita o inactividad). "
-    "Puede tardar hasta ~90 s: arranque del contenedor + carga del modelo. "
-    "Puedes pegar la lista mientras esperas."
-)
-
-_PRIVACY_MSG = (
-    "La lista se envía al worker para emparejar y no se conserva tras el TTL "
-    "del job (~1 h). v1 no inicia sesión ni escribe en el carrito: exporta "
-    "enlaces y cantidades."
-)
-
 _RESULT_COLUMNS: Tuple[str] = (
     LineResultColumns.QUERY,
     LineResultColumns.STATUS,
