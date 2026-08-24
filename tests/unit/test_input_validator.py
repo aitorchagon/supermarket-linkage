@@ -84,6 +84,13 @@ def test_warns_above_warn_lines() -> None:
     assert "Long list" in result.warnings[0]
 
 
+def test_warns_multiple_quantities_on_one_line() -> None:
+    result = InputValidator().validate("arroz basmati 1500 g leche entera 2l")
+    assert result.ok
+    assert len(result.lines) == 1
+    assert any("producto por línea" in w for w in result.warnings)
+
+
 def test_keeps_tabs_and_newlines_during_strip() -> None:
     # Tabs inside a line are kept by CONTROL_CHARS; strip() still trims edges.
     text = "leche\tentera\npan"

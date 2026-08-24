@@ -97,7 +97,7 @@ def test_jobs_rate_limit_429(settings: WorkerSettings) -> None:
         assert first.status_code == 202
         second = client.post("/jobs", json=body)
         assert second.status_code == 429
-        assert "rate limit" in second.json()["detail"].lower()
+        assert "búsquedas" in second.json()["detail"].lower() or "minuto" in second.json()["detail"].lower()
 
 
 def test_jobs_happy_path_sample_catalog(client: TestClient) -> None:
@@ -199,5 +199,5 @@ def test_api_key_required() -> None:
 
 
 def test_default_max_jobs_constant_used_by_limiter() -> None:
-    # Guard: threat-model cap still 5/h so the 429 test's override is meaningful.
-    assert MAX_JOBS_PER_HOUR == 5
+    # Guard: personal/demo cap stays high enough for Streamlit Cloud's shared IP.
+    assert MAX_JOBS_PER_HOUR >= 60

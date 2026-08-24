@@ -55,11 +55,11 @@ def test_jobs_isolated_per_ip() -> None:
     assert limiter.allow_job("10.0.0.2")
 
 
-def test_concurrent_job_slot_one_per_ip() -> None:
+def test_concurrent_job_slot_cap_per_ip() -> None:
     limiter = RateLimiter()
     ip = "3.3.3.3"
-    assert MAX_CONCURRENT_JOBS_PER_IP == 1
-    assert limiter.try_acquire_job(ip)
+    for _ in range(MAX_CONCURRENT_JOBS_PER_IP):
+        assert limiter.try_acquire_job(ip)
     assert not limiter.try_acquire_job(ip)
     limiter.release_job(ip)
     assert limiter.try_acquire_job(ip)
@@ -69,13 +69,15 @@ def test_allow_and_acquire_job_checks_both() -> None:
     clock = _FakeClock()
     limiter = RateLimiter(now=clock)
     ip = "4.4.4.4"
-    assert limiter.allow_and_acquire_job(ip)
-    # Concurrent slot busy → fail without burning another token path oddly;
-    # second call fails on concurrency while first slot still held.
+    for _ in range(MAX_CONCURRENT_JOBS_PER_IP):
+        assert limiter.allow_and_acquire_job(ip)
+    # Concurrent slots full → fail.
     assert not limiter.allow_and_acquire_job(ip)
-    limiter.release_job(ip)
-    # Remaining hourly tokens: MAX_JOBS_PER_HOUR - 1
-    for _ in range(MAX_JOBS_PER_HOUR - 1):
+    for _ in range(MAX_CONCURRENT_JOBS_PER_IP):
+        limiter.release_job(ip)
+    # Remaining hourly tokens: MAX_JOBS_PER_HOUR - MAX_CONCURRENT_JOBS_PER_IP
+    remaining = MAX_JOBS_PER_HOUR - MAX_CONCURRENT_JOBS_PER_IP
+    for _ in range(remaining):
         assert limiter.allow_and_acquire_job(ip)
         limiter.release_job(ip)
     assert not limiter.allow_and_acquire_job(ip)
