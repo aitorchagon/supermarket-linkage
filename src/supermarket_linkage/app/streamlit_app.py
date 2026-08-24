@@ -84,6 +84,7 @@ def _init_state() -> None:
 
 
 def _apply_upload() -> None:
+    """Optional .txt upload shown after the text area; reruns so the area updates."""
     uploaded = st.file_uploader("O sube un archivo .txt", type=["txt"])
     if uploaded is None:
         return
@@ -92,6 +93,7 @@ def _apply_upload() -> None:
         return
     st.session_state["_uploaded_id"] = file_id
     st.session_state["list_text"] = uploaded.getvalue().decode("utf-8", errors="replace")
+    st.rerun()
 
 
 def _poll_job(client: WorkerClient, job_id: str) -> None:
@@ -160,11 +162,19 @@ def _render_results(
         more = f" (+{len(unmatched_queries) - 8})" if len(unmatched_queries) > 8 else ""
         st.info(f"Sin match: {preview}{more}")
 
-    display = [{col: row.get(col) for col in _RESULT_COLUMNS} for row in rows]
+    display: list[dict[str, Any]] = []
+    for row in rows:
+        item = {col: row.get(col) for col in _RESULT_COLUMNS}
+        # Always surface a trusted Mercadona URL (export builder), not a raw/empty cell.
+        item[LineResultColumns.PRODUCT_URL] = _EXPORT.product_url(row)
+        display.append(item)
     column_config: dict[str, Any] = {}
     if hasattr(st, "column_config"):
         column_config[LineResultColumns.PRODUCT_URL] = st.column_config.LinkColumn(
-            "product_url"
+            "Enlace",
+            help="Abre el producto en tienda.mercadona.es",
+            display_text="Abrir en Mercadona",
+            validate=r"^https://tienda\.mercadona\.es/.*",
         )
     st.dataframe(display, hide_index=True, use_container_width=True, column_config=column_config)
 
@@ -197,9 +207,17 @@ def _render_results(
         height=180,
         key=f"clip_out_{st.session_state.get('job_id') or 'latest'}",
     )
-    links = _EXPORT.product_links(rows)
-    if links:
-        st.markdown("\n".join(f"- {url}" for url in links))
+    link_lines: list[str] = []
+    for row in rows:
+        url = _EXPORT.product_url(row)
+        if not url:
+            continue
+        name = str(
+            row.get(LineResultColumns.NAME) or row.get(LineResultColumns.QUERY) or "producto"
+        ).replace("[", "(").replace("]", ")")
+        link_lines.append(f"- [{name}]({url})")
+    if link_lines:
+        st.markdown("**Enlaces**\n\n" + "\n".join(link_lines))
 
 
 def main() -> None:
@@ -238,13 +256,13 @@ def main() -> None:
         help="El worker usa el precio de oferta si el producto lo tiene. No requiere cuenta.",
     )
 
-    _apply_upload()
     text = st.text_area(
         "Lista de la compra (un producto por línea)",
         height=220,
         placeholder="arroz basmati 1500 g\nleche entera 1l",
         key="list_text",
     )
+    _apply_upload()
 
     validated = _VALIDATOR.validate(text) if text.strip() else None
     if validated is not None:
