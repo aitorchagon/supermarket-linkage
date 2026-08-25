@@ -50,9 +50,19 @@ def to_kg(value: float, unit: str) -> Optional[float]:
 
 
 def is_count_unit(unit: str) -> bool:
-    """True for piece / pack count units (ud, unidad, …)."""
+    """True for piece / pack count units (ud, unidad, paquete, …)."""
     u = unit.lower()
-    return u in {"u", "ud", "uds", "unidad", "unidades"}
+    return u in {
+        "u",
+        "ud",
+        "uds",
+        "unidad",
+        "unidades",
+        "paquete",
+        "paquetes",
+        "pack",
+        "packs",
+    }
 
 
 def _to_float(value: object = None, *, raw: object | None = None) -> Optional[float]:

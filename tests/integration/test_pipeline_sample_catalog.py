@@ -13,7 +13,11 @@ import numpy as np
 
 from supermarket_linkage.pipeline.linkage_orchestrator import LinkageOrchestrator
 from supermarket_linkage.preprocessors.price_normalizer import PriceNormalizer
-from supermarket_linkage.preprocessors.text_normalizer import extract_search_query, normalize_text
+from supermarket_linkage.preprocessors.text_normalizer import (
+    extract_search_alternatives,
+    extract_search_query,
+    normalize_text,
+)
 from supermarket_linkage.schemas.line_result_table import LineResultColumns
 from supermarket_linkage.schemas.product_table import ProductColumns, ProductTable
 
@@ -135,6 +139,32 @@ def test_pipeline_no_match(
     result = orchestrator.link_line(query, products, line_index=3)
     assert result[LineResultColumns.STATUS][0] == "no_match"
     assert result[LineResultColumns.PRODUCT_ID][0] is None
+
+
+def test_pipeline_or_alternative_picks_leche(
+    catalog: pl.DataFrame, orchestrator: LinkageOrchestrator
+) -> None:
+    query = "leche o bebida vegetal 6l"
+    alts = extract_search_alternatives(query)
+    assert alts[0] == "leche"
+    products = _search_offline(catalog, alts[0])
+    result = orchestrator.link_line(
+        query, products, line_index=4, query_norm=alts[0]
+    )
+    assert result[LineResultColumns.STATUS][0] == "matched"
+    assert result[LineResultColumns.PRODUCT_ID][0] in {"30902", "30903", "30910"}
+
+
+def test_pipeline_queso_fresco_batido_drops_paquetes(
+    catalog: pl.DataFrame, orchestrator: LinkageOrchestrator
+) -> None:
+    query = "Queso fresco batido 2 paquetes"
+    q_norm = extract_search_query(query)
+    assert q_norm == "queso fresco batido"
+    products = _search_offline(catalog, q_norm)
+    result = orchestrator.link_line(query, products, line_index=5, query_norm=q_norm)
+    assert result[LineResultColumns.STATUS][0] == "matched"
+    assert result[LineResultColumns.PRODUCT_ID][0] == "55001"
 
 
 def test_pipeline_link_lines_batch(

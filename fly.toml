@@ -1,5 +1,4 @@
-# fly.toml — supermarket-linkage worker (FastAPI + MiniLM)
-# In-memory jobs require exactly one always-on machine. Do not enable auto-stop.
+# Worker FastAPI + MiniLM. Scale-to-zero when idle (cold start loads the model again).
 
 app = 'supermarket-linkage-worker'
 primary_region = 'cdg'
@@ -10,9 +9,9 @@ primary_region = 'cdg'
 [http_service]
   internal_port = 7860
   force_https = true
-  auto_stop_machines = 'off'
+  auto_stop_machines = 'stop'
   auto_start_machines = true
-  min_machines_running = 1
+  min_machines_running = 0
   processes = ['app']
 
 [[vm]]

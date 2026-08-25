@@ -55,7 +55,10 @@ def _name_embed_variants(name: str | None, name_norm: str | None) -> List[str]:
 
 class SemanticStage(BaseStage):
     """
-    Keep candidates whose cosine similarity is >= SEMANTIC_THRESHOLD.
+    Score cosine similarity; keep rows at/above threshold **or** heuristic pass.
+
+    Heuristic survivors often have short queries vs long Mercadona titles, so
+    cosine alone can drop true SKUs. Those rows stay; score is still stored.
     """
 
     def __init__(
@@ -68,10 +71,11 @@ class SemanticStage(BaseStage):
 
     def _process(self, df: pl.DataFrame) -> pl.DataFrame:
         """
-        Score cosine similarity and keep rows at or above the threshold.
+        Score cosine similarity and keep rows at or above the threshold,
+        or rows that already passed the token heuristic.
 
         Pre: ``query_norm`` and ``name`` and/or ``name_norm``; injectable embedder.
-        Post: CandidateTable filtered by ``semantic_score``.
+        Post: CandidateTable with ``semantic_score``; filtered as above.
         """
         if df.height == 0:
             return CandidateTable.enforce_schema(df)
@@ -121,7 +125,14 @@ class SemanticStage(BaseStage):
                 max(cosine_similarity(q_vec, by_text[v]) for v in variants if v in by_text)
             )
 
-        out = df.with_columns(
+        scored = df.with_columns(
             pl.Series(CandidateColumns.SEMANTIC_SCORE, scores, dtype=pl.Float64)
-        ).filter(pl.col(CandidateColumns.SEMANTIC_SCORE) >= self.threshold)
-        return CandidateTable.enforce_schema(out)
+        )
+        above = pl.col(CandidateColumns.SEMANTIC_SCORE) >= self.threshold
+        if CandidateColumns.HEURISTIC_PASS in scored.columns:
+            kept = scored.filter(
+                above | (pl.col(CandidateColumns.HEURISTIC_PASS) == True)  # noqa: E712
+            )
+        else:
+            kept = scored.filter(above)
+        return CandidateTable.enforce_schema(kept)

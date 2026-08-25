@@ -21,7 +21,10 @@ from supermarket_linkage.consts import JOB_TIMEOUT_SECONDS, SUPPORTED_STORES
 from supermarket_linkage.pipeline.consts import STATUS_MATCHED, STATUS_NO_MATCH
 from supermarket_linkage.pipeline.linkage_orchestrator import LinkageOrchestrator
 from supermarket_linkage.pipeline.semantic_stage import Embedder
-from supermarket_linkage.preprocessors.text_normalizer import extract_search_query
+from supermarket_linkage.preprocessors.text_normalizer import (
+    extract_search_alternatives,
+    extract_search_query,
+)
 from supermarket_linkage.schemas.line_result_table import LineResultColumns, LineResultTable
 from supermarket_linkage.schemas.product_table import ProductColumns, ProductTable
 from supermarket_linkage.validation.input_validator import InputValidator, ValidationResult
@@ -153,8 +156,12 @@ class JobOrchestrator:
         deadline: float,
     ) -> List[Dict[str, object]]:
         self._check_deadline(deadline)
-        query_norms = [extract_search_query(line) for line in spec.lines]
-        unique = list(dict.fromkeys(q for q in query_norms if q))
+        line_alts: List[List[str]] = [
+            extract_search_alternatives(line) for line in spec.lines
+        ]
+        unique = list(
+            dict.fromkeys(q for alts in line_alts for q in alts if q)
+        )
 
         client = self._create_client(spec.store)
         hits = client.search_batch(
@@ -173,16 +180,14 @@ class JobOrchestrator:
         embedder = self._embedder_provider()
         linkage = LinkageOrchestrator(embedder=embedder, store=spec.store)
         frames: List[pl.DataFrame] = []
-        for i, (line, normalized_query) in enumerate(zip(spec.lines, query_norms, strict=True)):
+        for i, (line, alts) in enumerate(zip(spec.lines, line_alts, strict=True)):
             self._check_deadline(deadline)
-            products = hits_by_query.get(normalized_query)
-            if products is None:
-                products = ProductTable.as_empty_dataframe()
-            result = linkage.link_line(
-                query=line,
-                products=products,
+            result = _link_line_with_alternatives(
+                linkage=linkage,
+                line=line,
+                alternatives=alts,
+                hits_by_query=hits_by_query,
                 line_index=i,
-                query_norm=normalized_query,
             )
             result = _apply_promo(
                 result=result,
@@ -274,6 +279,42 @@ def _split_hits(hits: pl.DataFrame, unique: Sequence[str]) -> Dict[str, pl.DataF
         by_query[str(q)] = ProductTable.enforce_schema(frame)
 
     return {q: by_query.get(q, empty) for q in unique}
+
+
+def _link_line_with_alternatives(
+    *,
+    linkage: LinkageOrchestrator,
+    line: str,
+    alternatives: Sequence[str],
+    hits_by_query: Dict[str, pl.DataFrame],
+    line_index: int,
+) -> pl.DataFrame:
+    """
+    Try each search alternative (OR branches / pasta shapes) until one matches.
+
+    Pre: ``hits_by_query`` keyed by normalized alternative strings.
+    Post: one-row LineResultTable (matched or no_match).
+    """
+    empty = ProductTable.as_empty_dataframe()
+    alts = [a for a in alternatives if a] or [extract_search_query(line)]
+    last = linkage.link_line(
+        query=line,
+        products=empty,
+        line_index=line_index,
+        query_norm=alts[0],
+    )
+    for alt in alts:
+        products = hits_by_query.get(alt, empty)
+        result = linkage.link_line(
+            query=line,
+            products=products,
+            line_index=line_index,
+            query_norm=alt,
+        )
+        last = result
+        if str(result[LineResultColumns.STATUS][0]) == STATUS_MATCHED:
+            return result
+    return last
 
 
 def _apply_promo(

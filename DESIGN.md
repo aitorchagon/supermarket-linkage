@@ -70,8 +70,8 @@ Master never loads the embedding model or hits Mercadona directly.
 |-------|------|
 | Heuristic | Exact normalized name **or** all query tokens ⊆ product name |
 | Blocking | Same `source_query` block |
-| Semantic | Cosine ≥ `SEMANTIC_THRESHOLD` (0.75) |
-| Distance | Jaro-Winkler distance < `JW_MAX_DISTANCE` (0.1) via `polars-distance` |
+| Semantic | Cosine ≥ `SEMANTIC_THRESHOLD` (0.75), **or** `heuristic_pass` (score still stored) |
+| Distance | Jaro-Winkler distance < `JW_MAX_DISTANCE` (0.1) via `polars-distance` (heuristic passers kept even if JW ≥ cap) |
 
 ### Winner branches
 

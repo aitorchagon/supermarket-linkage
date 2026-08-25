@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import re
 import unicodedata
 from typing import (
-    FrozenSet, 
-    Optional,
-    Dict,
     Any,
+    Dict,
+    FrozenSet,
+    List,
+    Optional,
 )
 
 import polars as pl
@@ -17,7 +19,7 @@ from supermarket_linkage.preprocessors.consts import _to_float, is_count_unit, t
 from supermarket_linkage.regex_consts import NON_WORD, QUANTITY
 
 # Spanish grocery stopwords (hard-coded); the ones referring to quantity are stripped via
-# QUANTITY separately. 
+# QUANTITY separately. ``o`` is kept here for leftover fragments; OR-splitting runs first.
 STOPWORDS: FrozenSet[str] = frozenset(
     {
         "a",
@@ -25,6 +27,7 @@ STOPWORDS: FrozenSet[str] = frozenset(
         "aprox",
         "aproximada",
         "aproximado",
+        "ciento",
         "con",
         "de",
         "del",
@@ -46,6 +49,50 @@ STOPWORDS: FrozenSet[str] = frozenset(
     }
 )
 
+# Common paste typos / Spanish vs Italian pasta spelling → catalog form.
+TOKEN_ALIASES: Dict[str, str] = {
+    "espagueti": "spaghetti",
+    "espaguetis": "spaghetti",
+    "espaguetti": "spaghetti",
+    "espaguettis": "spaghetti",
+    # Mercadona Algolia titles use batata, not boniato.
+    "boniato": "batata",
+    "boniatos": "batata",
+    # rough_stem("nueces") → "nuec"; catalog uses singular "nuez".
+    "nueces": "nuez",
+}
+
+# When the shopper writes generic «pasta», also search common shape names.
+_PASTA_SHAPE_ALTERNATIVES: tuple[str, ...] = (
+    "spaghetti",
+    "macarron",
+    "macarrones",
+    "espirales",
+    "tallarines",
+    "fideos",
+)
+
+# Split shopping-list OR before stopword drop: «leche o bebida vegetal».
+_OR_SPLIT: re.Pattern[str] = re.compile(r"\s+o\s+", re.IGNORECASE)
+
+# Leading catalog stems that are form/cut, not the product head (copos de avena…).
+# Values are rough_stem forms so they match after plural stemming.
+NAME_FORMAT_PREFIXES: FrozenSet[str] = frozenset(
+    {
+        "bebida",
+        "caldo",
+        "copo",
+        "crema",
+        "dado",
+        "filete",
+        "loncha",
+        "pechuga",
+        "salsa",
+        "trozo",
+        "zumo",
+    }
+)
+
 
 def strip_accents(text: str) -> str:
     """
@@ -53,6 +100,21 @@ def strip_accents(text: str) -> str:
     """
     normalized = unicodedata.normalize("NFKD", text)
     return "".join(ch for ch in normalized if not unicodedata.combining(ch))
+
+
+def rough_stem(token: str) -> str:
+    """
+    Light Spanish plural stem for grocery tokens (lentejas→lenteja, filetes→filete).
+    """
+    if len(token) <= 3:
+        return token
+    if token.endswith("tes") and len(token) > 4:
+        return token[:-1]
+    if token.endswith("es") and len(token) > 4:
+        return token[:-2]
+    if token.endswith("s"):
+        return token[:-1]
+    return token
 
 
 def normalize_text(text: str) -> str:
@@ -63,7 +125,11 @@ def normalize_text(text: str) -> str:
     """
     lowered = strip_accents(text).lower()
     cleaned = NON_WORD.sub(" ", lowered)
-    tokens = [t for t in cleaned.split() if t and t not in STOPWORDS]
+    tokens = [
+        TOKEN_ALIASES.get(t, t)
+        for t in cleaned.split()
+        if t and t not in STOPWORDS
+    ]
     return " ".join(tokens)
 
 
@@ -85,13 +151,45 @@ def parse_requested_amount_kg(text: str) -> Optional[float]:
     return to_kg(value, unit)
 
 
-def extract_search_query(text: str) -> str:
+def _expand_pasta_alternatives(query_norm: str) -> List[str]:
+    """If ``pasta`` is a token, also emit shape-specific queries for Mercadona titles."""
+    tokens = query_norm.split()
+    if "pasta" not in tokens:
+        return [query_norm]
+    out: List[str] = [query_norm]
+    for shape in _PASTA_SHAPE_ALTERNATIVES:
+        replaced = " ".join(shape if t == "pasta" else t for t in tokens)
+        if replaced and replaced not in out:
+            out.append(replaced)
+    return out
+
+
+def extract_search_alternatives(text: str) -> List[str]:
     """
-    This function provides normalized product tokens
-    where we have removed quantity phrases via a catalog search.
+    Normalized search strings for one list line (OR branches + pasta expansions).
+
+    Pre: raw shopping-list line (may include quantities and ``o`` alternatives).
+    Post: de-duplicated non-empty norms; empty list only when nothing remains.
     """
     without_qty = QUANTITY.sub(" ", text)
-    return normalize_text(without_qty)
+    branches = _OR_SPLIT.split(without_qty)
+    alts: List[str] = []
+    for branch in branches:
+        norm = normalize_text(branch)
+        if not norm:
+            continue
+        for expanded in _expand_pasta_alternatives(norm):
+            if expanded and expanded not in alts:
+                alts.append(expanded)
+    return alts
+
+
+def extract_search_query(text: str) -> str:
+    """
+    Primary normalized product tokens for catalog search (first OR / pasta alternative).
+    """
+    alts = extract_search_alternatives(text)
+    return alts[0] if alts else ""
 
 
 def _row_fields(query: str) -> Dict[str, Any]:
@@ -118,7 +216,7 @@ class TextNormalizer(BasePreprocessor):
         """
         We add the columns query_norm, search_query, and requested_amount_kg out of
         a original df (polars DataFrame) that contains a string column named query, so the output contains
-        the original column plus the three extra columns. 
+        the original column plus the three extra columns.
         """
         if "query" not in df.columns:
             raise ValueError("TextNormalizer requires a 'query' column.")

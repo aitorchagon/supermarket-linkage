@@ -54,6 +54,24 @@ _RESULT_COLUMNS: Tuple[str] = (
     LineResultColumns.PRODUCT_URL,
 )
 
+_RESULT_COLUMN_LABELS: Dict[str, str] = {
+    LineResultColumns.QUERY: "Consulta",
+    LineResultColumns.STATUS: "Estado",
+    LineResultColumns.NAME: "Producto",
+    LineResultColumns.BRAND: "Marca",
+    LineResultColumns.UNITS_NEEDED: "Unidades",
+    LineResultColumns.EFFECTIVE_PRICE_EUR: "Precio (€)",
+    LineResultColumns.LINE_TOTAL_PRICE_EUR: "Total línea (€)",
+    LineResultColumns.PRICE_PER_KG: "Precio/kg (€)",
+    LineResultColumns.PACK_SIZE_MISSING: "Falta tamaño",
+    LineResultColumns.PRODUCT_URL: "Enlace",
+}
+
+_STATUS_LABELS: Dict[str, str] = {
+    "matched": "Emparejado",
+    "no_match": "Sin emparejar",
+}
+
 _POLL_INTERVAL_S = 0.5
 _VALIDATOR = InputValidator()
 _EXPORT = MercadonaExportBuilder()

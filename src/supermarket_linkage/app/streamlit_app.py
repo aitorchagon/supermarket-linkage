@@ -36,6 +36,8 @@ from supermarket_linkage.app.streamlit_consts import (
     _STORE_ORDER,
     _PROGRESS_LABELS,
     _RESULT_COLUMNS,
+    _RESULT_COLUMN_LABELS,
+    _STATUS_LABELS,
     _POLL_INTERVAL_S,
     _VALIDATOR,
     _EXPORT,
@@ -168,21 +170,35 @@ def _render_results(
 ) -> None:
     st.subheader("Resultados")
     if matched_count is not None and no_match_count is not None:
-        st.caption(f"{matched_count} con match · {no_match_count} sin match")
+        st.caption(f"{matched_count} emparejados · {no_match_count} sin emparejar")
     if unmatched_queries:
         preview = ", ".join(unmatched_queries[:8])
         more = f" (+{len(unmatched_queries) - 8})" if len(unmatched_queries) > 8 else ""
-        st.info(f"Sin match: {preview}{more}")
+        st.info(f"Sin emparejar: {preview}{more}")
 
     display: list[dict[str, Any]] = []
     for row in rows:
-        item = {col: row.get(col) for col in _RESULT_COLUMNS}
-        item[LineResultColumns.PRODUCT_URL] = _EXPORT.product_url(row)
+        item: dict[str, Any] = {}
+        for col in _RESULT_COLUMNS:
+            label = _RESULT_COLUMN_LABELS[col]
+            value = row.get(col)
+            if col == LineResultColumns.STATUS:
+                value = _STATUS_LABELS.get(str(value or ""), value)
+            elif col == LineResultColumns.PACK_SIZE_MISSING:
+                if value is True:
+                    value = "Sí"
+                elif value is False:
+                    value = "No"
+            elif col == LineResultColumns.PRODUCT_URL:
+                value = _EXPORT.product_url(row)
+            item[label] = value
         display.append(item)
+
     column_config: dict[str, Any] = {}
+    enlace_label = _RESULT_COLUMN_LABELS[LineResultColumns.PRODUCT_URL]
     if hasattr(st, "column_config"):
-        column_config[LineResultColumns.PRODUCT_URL] = st.column_config.LinkColumn(
-            "Enlace",
+        column_config[enlace_label] = st.column_config.LinkColumn(
+            enlace_label,
             help="Abre el producto en tienda.mercadona.es",
             display_text="Abrir en Mercadona",
             validate=r"^https://tienda\.mercadona\.es/.*",

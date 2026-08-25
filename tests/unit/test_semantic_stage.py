@@ -73,6 +73,29 @@ def test_semantic_stage_filters_below_threshold() -> None:
     assert out.height == 0
 
 
+def test_semantic_stage_keeps_heuristic_pass_below_threshold() -> None:
+    embedder = _DictEmbedder(
+        {
+            "huevos": np.array([1.0, 0.0]),
+            "huevos frescos categoria a": np.array([0.5, 0.5]),  # cos ≈ 0.707
+            "Huevos frescos categoria A": np.array([0.5, 0.5]),
+        }
+    )
+    df = pl.DataFrame(
+        {
+            CandidateColumns.PRODUCT_ID: ["1"],
+            CandidateColumns.NAME: ["Huevos frescos categoria A"],
+            CandidateColumns.NAME_NORM: ["huevos frescos categoria a"],
+            CandidateColumns.QUERY_NORM: ["huevos"],
+            CandidateColumns.HEURISTIC_PASS: [True],
+        }
+    )
+    out = SemanticStage(embedder=embedder).process(df)
+    assert out.height == 1
+    assert out[CandidateColumns.PRODUCT_ID][0] == "1"
+    assert out[CandidateColumns.SEMANTIC_SCORE][0] < SEMANTIC_THRESHOLD
+
+
 def test_semantic_stage_empty() -> None:
     out = SemanticStage(embedder=_DictEmbedder({})).process(pl.DataFrame())
     assert out.height == 0

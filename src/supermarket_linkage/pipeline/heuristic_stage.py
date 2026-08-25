@@ -3,16 +3,21 @@ from __future__ import annotations
 import polars as pl
 
 from supermarket_linkage.pipeline.base_stage import BaseStage
-from supermarket_linkage.preprocessors.text_normalizer import normalize_text
+from supermarket_linkage.preprocessors.text_normalizer import (
+    NAME_FORMAT_PREFIXES,
+    normalize_text,
+    rough_stem,
+)
 from supermarket_linkage.schemas.candidate_table import CandidateColumns, CandidateTable
 
 
 def heuristic_pass(query_norm: str | None, name_norm: str | None) -> bool:
     """
-    Exact normalized match, or all query tokens ⊆ name tokens.
+    Exact normalized match, or all query tokens ⊆ name tokens (plural-aware).
 
     The first query token must also be the first name token so dishes that
     merely contain the product (e.g. «Pollo … con arroz basmati») do not pass.
+    Catalog form prefixes (copos, filetes, pechuga, …) may precede the head noun.
     """
     query_normalized = (query_norm or "").strip()
     name_normalized = (name_norm or "").strip()
@@ -24,10 +29,17 @@ def heuristic_pass(query_norm: str | None, name_norm: str | None) -> bool:
     query_tokens = query_normalized.split()
     if not query_tokens or not name_tokens:
         return False
-    if query_tokens[0] != name_tokens[0]:
+
+    query_stems = [rough_stem(t) for t in query_tokens]
+    name_stems = [rough_stem(t) for t in name_tokens]
+    name_stem_set = set(name_stems)
+    if not all(token in name_stem_set for token in query_stems):
         return False
-    name_token_set = set(name_tokens)
-    return all(token in name_token_set for token in query_tokens)
+
+    if query_stems[0] == name_stems[0]:
+        return True
+    # «avena» → «copos de avena»; «filete pollo» → «filetes pechuga de pollo»
+    return name_stems[0] in NAME_FORMAT_PREFIXES and query_stems[0] in name_stem_set
 
 
 class HeuristicStage(BaseStage):
