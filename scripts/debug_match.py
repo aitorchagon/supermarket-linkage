@@ -11,6 +11,8 @@ from urllib.request import Request, urlopen
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+import polars as pl
+import polars_distance as pld
 from supermarket_linkage.consts import (
     JW_MAX_DISTANCE,
     MERCADONA_ALGOLIA_API_KEY,
@@ -56,11 +58,6 @@ def _search(query: str, n: int) -> list[dict]:
 
 
 def _jw(a: str, b: str) -> float | None:
-    try:
-        import polars as pl
-        import polars_distance as pld
-    except ImportError:
-        return None
     df = pl.DataFrame({"a": [a], "b": [b]}).with_columns(
         pld.col("a").dist_str.jaro_winkler(pl.col("b")).alias("d")
     )
