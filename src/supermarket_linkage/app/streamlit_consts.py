@@ -21,8 +21,10 @@ _WARMUP_RETRY_S = 15.0
 _WARMUP_TIMEOUT_S = 90.0
 
 _HEALTH_TIMEOUT_S = 5.0
-_JOB_TIMEOUT_S = 30.0
+# Cold Fly autostart + uvicorn accept can exceed 30 s.
+_JOB_TIMEOUT_S = 90.0
 _POLL_TIMEOUT_S = 15.0
+_HEALTH_POLL_WHILE_COLD_S = 2.0
 
 _STORE_LABELS: Dict[str, str] = {
     "mercadona": "Mercadona",

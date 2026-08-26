@@ -39,6 +39,7 @@ from supermarket_linkage.app.streamlit_consts import (
     _RESULT_COLUMN_LABELS,
     _STATUS_LABELS,
     _POLL_INTERVAL_S,
+    _HEALTH_POLL_WHILE_COLD_S,
     _VALIDATOR,
     _EXPORT,
 )
@@ -66,6 +67,7 @@ def _init_state() -> None:
         "list_text": "",
         "_uploaded_id": None,
         "worker_warm": False,
+        "worker_sample": False,
         "job_id": None,
         "results": None,
         "job_error": None,
@@ -142,23 +144,40 @@ def _poll_job(client: WorkerClient, job_id: str) -> None:
     status_box.empty()
 
 
-@st.fragment(run_every=timedelta(seconds=2))
-def _worker_status_fragment(client: WorkerClient, worker_url: str) -> None:
-    latest = client.health_or_none()
-    now_warm = bool(latest and latest.get("warm"))
-    prev = bool(st.session_state.get("worker_warm"))
-    st.session_state.worker_warm = now_warm
-    if latest is None:
-        st.error(
-            f"No se puede conectar al worker en `{worker_url}`. "
-        )
-    elif now_warm:
-        sample = " (modo muestra)" if latest.get("use_sample_catalog") else ""
-        st.success(f"Worker listo{sample}.")
-    else:
-        pass
-    if now_warm != prev:
-        st.rerun(scope="app")
+def _health_poll_interval(worker_warm: bool) -> timedelta | None:
+    """Poll /health only while cold. Continuous pings block Fly autostop."""
+    if worker_warm:
+        return None
+    return timedelta(seconds=_HEALTH_POLL_WHILE_COLD_S)
+
+
+def _render_worker_status(client: WorkerClient, worker_url: str) -> None:
+    interval = _health_poll_interval(bool(st.session_state.get("worker_warm")))
+
+    @st.fragment(run_every=interval)
+    def _poll() -> None:
+        if st.session_state.get("worker_warm"):
+            sample = " (modo muestra)" if st.session_state.get("worker_sample") else ""
+            st.success(f"Worker listo{sample}.")
+            st.caption(
+                "Si no hay búsquedas, el worker se apaga solo. "
+                "La siguiente puede tardar un poco en arrancar."
+            )
+            return
+        latest = client.health_or_none()
+        now_warm = bool(latest and latest.get("warm"))
+        prev = bool(st.session_state.get("worker_warm"))
+        st.session_state.worker_warm = now_warm
+        st.session_state.worker_sample = bool(latest and latest.get("use_sample_catalog"))
+        if latest is None:
+            st.info(f"Arrancando worker en `{worker_url}`…")
+        elif now_warm:
+            sample = " (modo muestra)" if st.session_state.worker_sample else ""
+            st.success(f"Worker listo{sample}.")
+        if now_warm != prev:
+            st.rerun(scope="app")
+
+    _poll()
 
 
 def _render_results(
@@ -253,9 +272,7 @@ def main() -> None:
 
     st.title("Lista de la compra → catálogo")
 
-    health = client.health_or_none()
-    st.session_state.worker_warm = bool(health and health.get("warm"))
-    _worker_status_fragment(client, cfg.worker_url)
+    _render_worker_status(client, cfg.worker_url)
 
     store_id = st.selectbox(
         "Tienda",
@@ -305,12 +322,13 @@ def main() -> None:
         st.caption("El código postal fija el almacén y los precios.")
 
     can_match = (
-        bool(st.session_state.worker_warm)
-        and store_ok
+        store_ok
         and validated is not None
         and validated.ok
         and postal_ok
     )
+    if not st.session_state.worker_warm and can_match:
+        st.caption("El worker puede estar apagado; la primera búsqueda tardará un poco más.")
 
     if st.button("Emparejar", type="primary", disabled=not can_match):
         assert validated is not None
