@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from typing import Optional
 
 import polars as pl
 
@@ -9,7 +10,9 @@ from supermarket_linkage.preprocessors.price_normalizer import parse_weight_from
 from supermarket_linkage.schemas.line_result_table import LineResultColumns, LineResultTable
 
 
-def units_for_total_weight(requested_kg: float | None, pack_kg: float | None) -> tuple[int, bool]:
+def units_for_total_weight(
+    requested_kg: Optional[float], pack_kg: Optional[float]
+) -> tuple[int, bool]:
     """
     This function allows to calculate how many units (packages) do we need to fulfill a requested total weight.
     We do not provide less than one unit. It returns a tuple that contains the units needed and whether
@@ -47,9 +50,9 @@ class QuantityResolver(BasePreprocessor):
         )
 
         units_list: list[int] = []
-        pack_list: list[float | None] = []
+        pack_list: list[Optional[float]] = []
         missing_list: list[bool] = []
-        total_list: list[float | None] = []
+        total_list: list[Optional[float]] = []
 
         for i, row in enumerate(base.iter_rows(named=True)):
             requested = row[LineResultColumns.REQUESTED_AMOUNT_KG]

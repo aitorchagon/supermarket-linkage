@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from typing import (
     Any,
+    Optional,
 )
 
 from supermarket_linkage.export.consts import (
@@ -22,7 +23,7 @@ class BaseExportBuilder(ABC):
     """
 
     @abstractmethod
-    def product_url(self, row: Mapping[str, Any]) -> str | None:
+    def product_url(self, row: Mapping[str, Any]) -> Optional[str]:
         """
         This function provides a public product URL for one result row, which is a LineResult dictionary
         (worker JSON). If there is no match or there is a missing id in the dictionary, we return None

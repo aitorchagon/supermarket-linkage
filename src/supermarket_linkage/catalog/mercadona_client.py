@@ -8,6 +8,7 @@ import time
 from collections.abc import Mapping, Sequence
 from typing import (
     Any,
+    Optional,
     Self,
 )
 from urllib.parse import urlencode
@@ -55,7 +56,7 @@ __all__ = [
 ]
 
 
-def _unit_measure(price_instructions: Mapping[str, Any]) -> str | None:
+def _unit_measure(price_instructions: Mapping[str, Any]) -> Optional[str]:
     """
     This function allows to canonicalize unit measures for the product, so we can compare
     products in an uniform way.
@@ -66,7 +67,7 @@ def _unit_measure(price_instructions: Mapping[str, Any]) -> str | None:
     return canonicalize_unit_measure(str(raw))
 
 
-def _approx_weight_kg(price_instructions: Mapping[str, Any]) -> float | None:
+def _approx_weight_kg(price_instructions: Mapping[str, Any]) -> Optional[float]:
     """
     This function allows to obtain the approximated weight of a product and normalize it to
     kilograms.
@@ -80,7 +81,7 @@ def _approx_weight_kg(price_instructions: Mapping[str, Any]) -> float | None:
 
 def _get_prices(
     price_instructions: Mapping[str, Any],
-) -> tuple[float | None, float | None, float | None]:
+) -> tuple[Optional[float], Optional[float], Optional[float]]:
     """
     This function allows to return a regular pack price plus a promo pack price (only when
     price decreased) measured in euros.
@@ -198,9 +199,9 @@ class MercadonaCatalogClient(BaseCatalogClient):
     def __init__(
         self,
         *,
-        postal_code: str | None = None,
-        warehouse: str | None = None,
-        http_client: httpx.Client | None = None,
+        postal_code: Optional[str] = None,
+        warehouse: Optional[str] = None,
+        http_client: Optional[httpx.Client] = None,
         sleep_s: float = HTTP_RATE_LIMIT_SECONDS,
         hits_per_page: int = MERCADONA_HITS_PER_PAGE,
     ) -> None:
@@ -223,7 +224,7 @@ class MercadonaCatalogClient(BaseCatalogClient):
     def __exit__(self, *args: object) -> None:
         self.close()
 
-    def search(self, query: str, *, postal_code: str | None = None) -> pl.DataFrame:
+    def search(self, query: str, *, postal_code: Optional[str] = None) -> pl.DataFrame:
         """
         Search one query via Algolia (delegates to ``search_batch``).
         """
@@ -233,7 +234,7 @@ class MercadonaCatalogClient(BaseCatalogClient):
         self,
         queries: Sequence[str],
         *,
-        postal_code: str | None = None,
+        postal_code: Optional[str] = None,
     ) -> pl.DataFrame:
         """
         Search many queries with Algolia multi-query in chunks of
@@ -278,7 +279,7 @@ class MercadonaCatalogClient(BaseCatalogClient):
             return ProductTable.as_empty_dataframe()
         return ProductTable.enforce_schema(pl.concat(frames, how="diagonal"))
 
-    def resolve_warehouse(self, postal_code: str | None = None) -> str:
+    def resolve_warehouse(self, postal_code: Optional[str] = None) -> str:
         """
         This function allows to map a Spanish postal_code, if provided, to a warehouse
         . We provide the default one if unknown.
@@ -306,7 +307,7 @@ class MercadonaCatalogClient(BaseCatalogClient):
         self._warehouse_cache[code] = resolved
         return resolved
 
-    def _lookup_warehouse(self, postal_code: str) -> str | None:
+    def _lookup_warehouse(self, postal_code: str) -> Optional[str]:
         """
         This function allows to lookup a warehouse using a provided postal code.
         To do that, it performs a PUT against the _POSTAL_URL specified in the constants; if it is not

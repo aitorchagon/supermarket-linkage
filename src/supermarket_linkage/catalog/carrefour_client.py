@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Optional
 
 import polars as pl
 
@@ -16,13 +17,13 @@ class CarrefourCatalogClient(BaseCatalogClient):
     def __init__(self, **kwargs: object) -> None:
         del kwargs
 
-    def search(self, query: str, *, postal_code: str | None = None) -> pl.DataFrame:
+    def search(self, query: str, *, postal_code: Optional[str] = None) -> pl.DataFrame:
         raise NotImplementedError(CARREFOUR_NOT_IMPLEMENTED_MESSAGE)
 
     def search_batch(
         self,
         queries: Sequence[str],
         *,
-        postal_code: str | None = None,
+        postal_code: Optional[str] = None,
     ) -> pl.DataFrame:
         raise NotImplementedError(CARREFOUR_NOT_IMPLEMENTED_MESSAGE)

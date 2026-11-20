@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import (
     Any,
+    Optional,
 )
 
 from supermarket_linkage.consts import (
@@ -21,7 +22,7 @@ class MercadonaExportBuilder(BaseExportBuilder):
     quantities from tienda.mercadona.es.
     """
 
-    def product_url(self, row: Mapping[str, Any]) -> str | None:
+    def product_url(self, row: Mapping[str, Any]) -> Optional[str]:
         """
         This is a function that uses a trusted existing URL; if we do not have it,
         we use ``/product/{id}`` for digit ids.

@@ -1,5 +1,7 @@
 import polars as pl
+import pytest
 
+from supermarket_linkage.catalog.promo_policy import MercadonaPromoPolicy
 from supermarket_linkage.preprocessors.price_normalizer import (
     PriceNormalizer,
     canonicalize_unit_measure,
@@ -94,3 +96,39 @@ def test_enforce_product_schema() -> None:
     out = PriceNormalizer().process(df)
     assert out.columns == ProductTable.columns()
     assert out[ProductColumns.PRICE_PER_KG][0] == 1.4  # 0.70 / 0.5
+
+
+def test_promo_price_per_kg_respects_is_promo_member_on_litro() -> None:
+    df = pl.DataFrame(
+        {
+            ProductColumns.PRODUCT_ID: ["30902"],
+            ProductColumns.NAME: ["Leche entera 1 l"],
+            ProductColumns.PRICE_EUR: [0.84],
+            ProductColumns.PROMO_PRICE_EUR: [0.75],
+            ProductColumns.UNIT_PRICE_EUR: [0.75],
+            ProductColumns.UNIT_MEASURE: ["LITRO"],
+            ProductColumns.APPROX_WEIGHT_KG: [1.0],
+        }
+    )
+    policy = MercadonaPromoPolicy()
+    non_member = PriceNormalizer(promo_policy=policy, is_promo_member=False).process(df)
+    member = PriceNormalizer(promo_policy=policy, is_promo_member=True).process(df)
+    assert non_member[ProductColumns.PRICE_PER_KG][0] == pytest.approx(0.84)
+    assert member[ProductColumns.PRICE_PER_KG][0] == pytest.approx(0.75)
+
+
+def test_promo_price_per_kg_for_unidad_with_name_weight() -> None:
+    df = pl.DataFrame(
+        {
+            ProductColumns.PRODUCT_ID: ["4245"],
+            ProductColumns.NAME: ["Arroz basmati 1 kg"],
+            ProductColumns.PRICE_EUR: [1.80],
+            ProductColumns.PROMO_PRICE_EUR: [1.40],
+            ProductColumns.UNIT_MEASURE: ["UNIDAD"],
+        }
+    )
+    policy = MercadonaPromoPolicy()
+    non_member = PriceNormalizer(promo_policy=policy, is_promo_member=False).process(df)
+    member = PriceNormalizer(promo_policy=policy, is_promo_member=True).process(df)
+    assert non_member[ProductColumns.PRICE_PER_KG][0] == pytest.approx(1.80)
+    assert member[ProductColumns.PRICE_PER_KG][0] == pytest.approx(1.40)

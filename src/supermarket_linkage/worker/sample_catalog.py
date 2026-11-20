@@ -6,6 +6,7 @@ import json
 import os
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Optional
 
 import polars as pl
 
@@ -37,7 +38,7 @@ def default_sample_catalog_path() -> Path:
     )
 
 
-def load_sample_catalog(path: Path | None = None) -> pl.DataFrame:
+def load_sample_catalog(path: Optional[Path] = None) -> pl.DataFrame:
     """
     This function loads Mercadona-shaped products and fill price per kg."""
     target = path or default_sample_catalog_path()
@@ -51,7 +52,7 @@ class SampleCatalogClient(BaseCatalogClient):
     This client allows for a token-subset search over a static JSON catalog.
     """
 
-    def __init__(self, path: str | Path | None = None) -> None:
+    def __init__(self, path: Optional[str | Path] = None) -> None:
         resolved = Path(path) if path else None
         self._catalog = load_sample_catalog(resolved)
         self._name_tokens: list[set[str]] = [
@@ -59,7 +60,7 @@ class SampleCatalogClient(BaseCatalogClient):
             for name in self._catalog[ProductColumns.NAME].to_list()
         ]
 
-    def search(self, query: str, *, postal_code: str | None = None) -> pl.DataFrame:
+    def search(self, query: str, *, postal_code: Optional[str] = None) -> pl.DataFrame:
         """
         Search one query (postal code ignored offline).
         """
@@ -70,7 +71,7 @@ class SampleCatalogClient(BaseCatalogClient):
         self,
         queries: Sequence[str],
         *,
-        postal_code: str | None = None,
+        postal_code: Optional[str] = None,
     ) -> pl.DataFrame:
         """
         Match products whose name tokens contain all query tokens.

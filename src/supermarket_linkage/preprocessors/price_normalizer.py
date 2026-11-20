@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from typing import Optional
+
 import polars as pl
 
+from supermarket_linkage.catalog.promo_policy import MercadonaPromoPolicy, PromoPolicy
 from supermarket_linkage.preprocessors.base_preprocessor import BasePreprocessor
 from supermarket_linkage.preprocessors.consts import (
     _MEASURE_ALIASES,
@@ -15,7 +18,7 @@ from supermarket_linkage.regex_consts import PACK_SIZE
 from supermarket_linkage.schemas.product_table import ProductColumns, ProductTable
 
 
-def canonicalize_unit_measure(raw: str | None) -> str | None:
+def canonicalize_unit_measure(raw: Optional[str]) -> Optional[str]:
     """
     This function maps catalog unit strings and reported aliases to either KILO, LITRO or UNIDAD."""
     if raw is None or raw == "":
@@ -26,7 +29,7 @@ def canonicalize_unit_measure(raw: str | None) -> str | None:
     return _MEASURE_ALIASES.get(key)
 
 
-def parse_weight_from_name(name: str | None) -> float | None:
+def parse_weight_from_name(name: Optional[str]) -> Optional[float]:
     """
     We take the first pack_size match in product name and we return its kilogram equivalent
     """
@@ -42,11 +45,11 @@ def parse_weight_from_name(name: str | None) -> float | None:
 
 
 def _price_per_kg(
-    measure: str | None,
-    price_eur: float | None,
-    unit_price_eur: float | None,
-    weight_kg: float | None,
-) -> float | None:
+    measure: Optional[str],
+    price_eur: Optional[float],
+    unit_price_eur: Optional[float],
+    weight_kg: Optional[float],
+) -> Optional[float]:
     """
     This function allows to compute euros per kilo (or euros per liter, it is treated the same),
     it returns a null when it is unknown.
@@ -77,15 +80,24 @@ class PriceNormalizer(BasePreprocessor):
     price per kilogram.
     """
 
+    def __init__(
+        self,
+        *,
+        promo_policy: Optional[PromoPolicy] = None,
+        is_promo_member: bool = False,
+    ) -> None:
+        self.promo_policy = promo_policy or (MercadonaPromoPolicy() if is_promo_member else None)
+        self.is_promo_member = is_promo_member
+
     def process(self, df: pl.DataFrame) -> pl.DataFrame:
         """
         This function allows to fill unit_measure, approx_weight_kg and price_per_kg columns.
         """
         enforced = ProductTable.enforce_schema(df)
 
-        measures: list[str | None] = []
-        weights: list[float | None] = []
-        prices_kg: list[float | None] = []
+        measures: list[Optional[str]] = []
+        weights: list[Optional[float]] = []
+        prices_kg: list[Optional[float]] = []
 
         for row in enforced.iter_rows(named=True):
             measure = canonicalize_unit_measure(raw=row[ProductColumns.UNIT_MEASURE])
@@ -96,12 +108,40 @@ class PriceNormalizer(BasePreprocessor):
             if weight is None and measure in (MEASURE_KILO, MEASURE_LITRO):
                 weight = parsed_w
 
-            price_kg = _price_per_kg(
-                measure,
-                row[ProductColumns.PRICE_EUR],
-                row[ProductColumns.UNIT_PRICE_EUR],
-                weight,
-            )
+            if self.promo_policy is not None:
+                effective_price = self.promo_policy.effective_price(row, self.is_promo_member)
+                if row[ProductColumns.PROMO_PRICE_EUR] is not None:
+                    if weight is not None and weight > 0 and effective_price is not None:
+                        price_kg: Optional[float] = float(effective_price) / float(weight)
+                    else:
+                        price_kg = _price_per_kg(
+                            measure,
+                            effective_price,
+                            row[ProductColumns.UNIT_PRICE_EUR],
+                            weight,
+                        )
+                else:
+                    price_kg = _price_per_kg(
+                        measure,
+                        effective_price,
+                        row[ProductColumns.UNIT_PRICE_EUR],
+                        weight,
+                    )
+            else:
+                price_kg = _price_per_kg(
+                    measure,
+                    row[ProductColumns.PRICE_EUR],
+                    row[ProductColumns.UNIT_PRICE_EUR],
+                    weight,
+                )
+
+            if (
+                price_kg is None
+                and row[ProductColumns.PRICE_PER_KG] is not None
+                and row[ProductColumns.PRICE_EUR] is None
+                and row[ProductColumns.UNIT_PRICE_EUR] is None
+            ):
+                price_kg = row[ProductColumns.PRICE_PER_KG]
 
             measures.append(measure)
             weights.append(weight)

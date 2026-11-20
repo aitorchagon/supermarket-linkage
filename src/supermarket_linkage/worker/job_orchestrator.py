@@ -4,6 +4,7 @@ import logging
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from typing import Optional
 
 import polars as pl
 
@@ -45,7 +46,7 @@ class JobSpec:
 
     lines: tuple[str, ...]
     store: str
-    postal_code: str | None
+    postal_code: Optional[str]
     is_promo_member: bool
     warnings: tuple[str, ...] = ()
 
@@ -69,19 +70,19 @@ class JobOrchestrator:
         job_store: JobStore,
         *,
         embedder_provider: Callable[[], Embedder],
-        catalog_client: BaseCatalogClient | None = None,
+        catalog_client: Optional[BaseCatalogClient] = None,
         use_sample_catalog: bool = False,
-        sample_catalog_path: str | None = None,
+        sample_catalog_path: Optional[str] = None,
         job_timeout_s: int = JOB_TIMEOUT_SECONDS,
-        promo_policy: PromoPolicy | None = None,
-        now: Callable[[], float] | None = None,
+        promo_policy: Optional[PromoPolicy] = None,
+        now: Optional[Callable[[], float]] = None,
     ) -> None:
         self._store = job_store
         self._embedder_provider = embedder_provider
         self._fixed_client = catalog_client
         self._use_sample = use_sample_catalog
         self._sample_path = sample_catalog_path
-        self._sample_client: SampleCatalogClient | None = None
+        self._sample_client: Optional[SampleCatalogClient] = None
         self._live_clients: dict[str, BaseCatalogClient] = {}
         self._timeout_s = job_timeout_s
         self._promo = promo_policy or MercadonaPromoPolicy()
@@ -167,7 +168,11 @@ class JobOrchestrator:
         )
 
         embedder = self._embedder_provider()
-        linkage = LinkageOrchestrator(embedder=embedder, store=spec.store)
+        linkage = LinkageOrchestrator(
+            embedder=embedder,
+            store=spec.store,
+            promo_policy=self._promo,
+        )
         frames: list[pl.DataFrame] = []
         for i, (line, alts) in enumerate(zip(spec.lines, line_alts, strict=True)):
             self._check_deadline(deadline)
@@ -177,6 +182,7 @@ class JobOrchestrator:
                 alternatives=alts,
                 hits_by_query=hits_by_query,
                 line_index=i,
+                is_promo_member=spec.is_promo_member,
             )
             result = _apply_promo(
                 result=result,
@@ -277,6 +283,7 @@ def _link_line_with_alternatives(
     alternatives: Sequence[str],
     hits_by_query: dict[str, pl.DataFrame],
     line_index: int,
+    is_promo_member: bool = False,
 ) -> pl.DataFrame:
     """
     Try each search alternative (OR branches / pasta shapes) until one matches.
@@ -291,6 +298,7 @@ def _link_line_with_alternatives(
         products=empty,
         line_index=line_index,
         query_norm=alts[0],
+        is_promo_member=is_promo_member,
     )
     for alt in alts:
         products = hits_by_query.get(alt, empty)
@@ -299,6 +307,7 @@ def _link_line_with_alternatives(
             products=products,
             line_index=line_index,
             query_norm=alt,
+            is_promo_member=is_promo_member,
         )
         last = result
         if str(result[LineResultColumns.STATUS][0]) == STATUS_MATCHED:
@@ -312,8 +321,8 @@ def _apply_promo(
     policy: PromoPolicy,
 ) -> pl.DataFrame:
     """Set effective pack price and line total from PromoPolicy (usually one row)."""
-    effective: list[float | None] = []
-    totals: list[float | None] = []
+    effective: list[Optional[float]] = []
+    totals: list[Optional[float]] = []
     for row in result.iter_rows(named=True):
         price = policy.effective_price(row, is_promo_member)
         units = row.get(LineResultColumns.UNITS_NEEDED)

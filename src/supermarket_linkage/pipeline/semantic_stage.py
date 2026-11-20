@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from typing import (
+    Optional,
     Protocol,
     runtime_checkable,
 )
@@ -38,7 +39,7 @@ def cosine_similarity(a: NDArray[np.floating], b: NDArray[np.floating]) -> float
     return float(np.dot(a, b) / denom)
 
 
-def _name_embed_variants(name: str | None, name_norm: str | None) -> list[str]:
+def _name_embed_variants(name: Optional[str], name_norm: Optional[str]) -> list[str]:
     """
     MiniLM is sensitive to casing/accents on some Spanish titles. Score the best
     of display name, accent-stripped lowercase, and token name_norm.

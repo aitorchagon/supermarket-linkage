@@ -1,7 +1,11 @@
+import numpy as np
 import polars as pl
+import pytest
 
-from supermarket_linkage.pipeline.linkage_orchestrator import select_winner
+from supermarket_linkage.pipeline.linkage_orchestrator import LinkageOrchestrator, select_winner
 from supermarket_linkage.schemas.candidate_table import CandidateColumns
+from supermarket_linkage.schemas.line_result_table import LineResultColumns
+from supermarket_linkage.schemas.product_table import ProductColumns, ProductTable
 
 
 def _survivors(**cols: list) -> pl.DataFrame:
@@ -79,3 +83,35 @@ def test_select_winner_empty() -> None:
         }
     )
     assert select_winner(empty).height == 0
+
+
+class _ConstEmbedder:
+    def embed(self, texts: list[str]) -> np.ndarray:
+        return np.ones((len(texts), 1), dtype=np.float64)
+
+
+def test_promo_member_flips_winner_in_orchestrator() -> None:
+    products = ProductTable.enforce_schema(
+        pl.DataFrame(
+            {
+                ProductColumns.PRODUCT_ID: ["reg_cheaper", "promo_cheaper"],
+                ProductColumns.NAME: ["Arroz basmati marca A 1 kg", "Arroz basmati marca B 1 kg"],
+                ProductColumns.PRICE_EUR: [1.50, 1.60],
+                ProductColumns.PROMO_PRICE_EUR: [None, 1.20],
+                ProductColumns.UNIT_PRICE_EUR: [1.50, 1.20],
+                ProductColumns.UNIT_MEASURE: ["KILO", "KILO"],
+                ProductColumns.APPROX_WEIGHT_KG: [1.0, 1.0],
+                ProductColumns.SOURCE_QUERY: ["arroz basmati", "arroz basmati"],
+            }
+        )
+    )
+    orchestrator = LinkageOrchestrator(embedder=_ConstEmbedder())
+
+    regular_res = orchestrator.link_line("arroz basmati 1 kg", products, is_promo_member=False)
+    assert regular_res[LineResultColumns.PRODUCT_ID][0] == "reg_cheaper"
+    assert regular_res[LineResultColumns.EFFECTIVE_PRICE_EUR][0] == pytest.approx(1.50)
+
+    promo_res = orchestrator.link_line("arroz basmati 1 kg", products, is_promo_member=True)
+    assert promo_res[LineResultColumns.PRODUCT_ID][0] == "promo_cheaper"
+    assert promo_res[LineResultColumns.EFFECTIVE_PRICE_EUR][0] == pytest.approx(1.20)
+    assert promo_res[LineResultColumns.PRICE_PER_KG][0] == pytest.approx(1.20)

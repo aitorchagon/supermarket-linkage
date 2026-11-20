@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Optional
+
 import polars as pl
 
 from supermarket_linkage.pipeline.base_stage import BaseStage
@@ -11,7 +13,7 @@ from supermarket_linkage.preprocessors.text_normalizer import (
 from supermarket_linkage.schemas.candidate_table import CandidateColumns, CandidateTable
 
 
-def heuristic_pass(query_norm: str | None, name_norm: str | None) -> bool:
+def heuristic_pass(query_norm: Optional[str], name_norm: Optional[str]) -> bool:
     """
     Exact normalized match, or all query tokens ⊆ name tokens (plural-aware).
 

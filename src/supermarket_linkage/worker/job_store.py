@@ -17,6 +17,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from typing import (
     Any,
+    Optional,
 )
 
 from supermarket_linkage.consts import JOB_TTL_SECONDS
@@ -56,11 +57,11 @@ class JobRecord:
     created_at: float = 0.0
     updated_at: float = 0.0
     warnings: list[str] = field(default_factory=list)
-    results: list[dict[str, Any]] | None = None
-    error: str | None = None
-    matched_count: int | None = None
-    no_match_count: int | None = None
-    unmatched_queries: list[str] | None = None
+    results: Optional[list[dict[str, Any]]] = None
+    error: Optional[str] = None
+    matched_count: Optional[int] = None
+    no_match_count: Optional[int] = None
+    unmatched_queries: Optional[list[str]] = None
 
 
 class JobStore(ABC):
@@ -71,7 +72,7 @@ class JobStore(ABC):
         """Create a job; ``job.id`` must be unique."""
 
     @abstractmethod
-    def get(self, job_id: str) -> JobRecord | None:
+    def get(self, job_id: str) -> Optional[JobRecord]:
         """Return a copy of a job, or None if expired / missing."""
 
     @abstractmethod
@@ -79,15 +80,15 @@ class JobStore(ABC):
         self,
         job_id: str,
         *,
-        status: str | None = None,
-        progress: JobProgress | None = None,
-        warnings: list[str] | None = None,
-        results: list[dict[str, Any]] | None = None,
-        error: str | None = None,
-        matched_count: int | None = None,
-        no_match_count: int | None = None,
-        unmatched_queries: list[str] | None = None,
-    ) -> JobRecord | None:
+        status: Optional[str] = None,
+        progress: Optional[JobProgress] = None,
+        warnings: Optional[list[str]] = None,
+        results: Optional[list[dict[str, Any]]] = None,
+        error: Optional[str] = None,
+        matched_count: Optional[int] = None,
+        no_match_count: Optional[int] = None,
+        unmatched_queries: Optional[list[str]] = None,
+    ) -> Optional[JobRecord]:
         """Patch fields on an existing job. None if missing or expired."""
 
 
@@ -101,7 +102,7 @@ class InMemoryJobStore(JobStore):
         self,
         ttl_s: int = JOB_TTL_SECONDS,
         *,
-        now: Callable[[], float] | None = None,
+        now: Optional[Callable[[], float]] = None,
     ) -> None:
         self._ttl_s = ttl_s
         self._now = now or time.monotonic
@@ -116,7 +117,7 @@ class InMemoryJobStore(JobStore):
             job.updated_at = now
             self._jobs[job.id] = job
 
-    def get(self, job_id: str) -> JobRecord | None:
+    def get(self, job_id: str) -> Optional[JobRecord]:
         with self._lock:
             self._purge_unlocked()
             job = self._jobs.get(job_id)
@@ -128,15 +129,15 @@ class InMemoryJobStore(JobStore):
         self,
         job_id: str,
         *,
-        status: str | None = None,
-        progress: JobProgress | None = None,
-        warnings: list[str] | None = None,
-        results: list[dict[str, Any]] | None = None,
-        error: str | None = None,
-        matched_count: int | None = None,
-        no_match_count: int | None = None,
-        unmatched_queries: list[str] | None = None,
-    ) -> JobRecord | None:
+        status: Optional[str] = None,
+        progress: Optional[JobProgress] = None,
+        warnings: Optional[list[str]] = None,
+        results: Optional[list[dict[str, Any]]] = None,
+        error: Optional[str] = None,
+        matched_count: Optional[int] = None,
+        no_match_count: Optional[int] = None,
+        unmatched_queries: Optional[list[str]] = None,
+    ) -> Optional[JobRecord]:
         with self._lock:
             self._purge_unlocked()
             job = self._jobs.get(job_id)

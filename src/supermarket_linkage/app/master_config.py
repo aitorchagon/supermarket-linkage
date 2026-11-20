@@ -1,6 +1,7 @@
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 from supermarket_linkage.app.streamlit_consts import DEFAULT_URL
 
@@ -8,7 +9,7 @@ from supermarket_linkage.app.streamlit_consts import DEFAULT_URL
 @dataclass(frozen=True)
 class MasterConfig:
     worker_url: str
-    api_key: str | None
+    api_key: Optional[str]
 
 
 def load_master_config() -> MasterConfig:

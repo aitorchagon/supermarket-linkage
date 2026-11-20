@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Optional
 
 import polars as pl
 
+from supermarket_linkage.catalog.promo_policy import MercadonaPromoPolicy, PromoPolicy
 from supermarket_linkage.pipeline.base_stage import BaseStage
 from supermarket_linkage.pipeline.blocking_stage import BlockingStage
 from supermarket_linkage.pipeline.consts import (
@@ -14,6 +16,7 @@ from supermarket_linkage.pipeline.consts import (
 from supermarket_linkage.pipeline.distance_stage import DistanceStage
 from supermarket_linkage.pipeline.heuristic_stage import HeuristicStage
 from supermarket_linkage.pipeline.semantic_stage import Embedder, SemanticStage
+from supermarket_linkage.preprocessors.price_normalizer import PriceNormalizer
 from supermarket_linkage.preprocessors.quantity_resolver import QuantityResolver
 from supermarket_linkage.preprocessors.text_normalizer import (
     extract_search_query,
@@ -67,7 +70,7 @@ def products_to_candidates(
     products: pl.DataFrame,
     *,
     query: str,
-    query_norm: str | None = None,
+    query_norm: Optional[str] = None,
 ) -> pl.DataFrame:
     """
     Build CandidateTable rows from ProductTable search hits.
@@ -116,13 +119,15 @@ class LinkageOrchestrator:
     def __init__(
         self,
         embedder: Embedder,
-        stages: Sequence[BaseStage] | None = None,
+        stages: Optional[Sequence[BaseStage]] = None,
         store: str = "mercadona",
-        quantity_resolver: QuantityResolver | None = None,
+        quantity_resolver: Optional[QuantityResolver] = None,
+        promo_policy: Optional[PromoPolicy] = None,
     ) -> None:
         self.embedder = embedder
         self.store = store
         self.quantity_resolver = quantity_resolver or QuantityResolver()
+        self.promo_policy = promo_policy or MercadonaPromoPolicy()
         if stages is not None:
             self.stages: list[BaseStage] = list(stages)
         else:
@@ -148,9 +153,11 @@ class LinkageOrchestrator:
         products: pl.DataFrame,
         *,
         line_index: int = 0,
-        query_norm: str | None = None,
-        requested_amount_kg: float | None = None,
+        query_norm: Optional[str] = None,
+        requested_amount_kg: Optional[float] = None,
         effective_price_col: str = ProductColumns.PRICE_EUR,
+        is_promo_member: bool = False,
+        promo_policy: Optional[PromoPolicy] = None,
     ) -> pl.DataFrame:
         """
         Link one shopping-list line to catalog hits.
@@ -162,7 +169,13 @@ class LinkageOrchestrator:
         if requested_amount_kg is None:
             requested_amount_kg = parse_requested_amount_kg(query)
 
-        candidates = products_to_candidates(products, query=query, query_norm=query_norm)
+        policy = promo_policy or self.promo_policy
+        priced_products = (
+            PriceNormalizer(promo_policy=policy, is_promo_member=is_promo_member).process(products)
+            if products.height > 0
+            else products
+        )
+        candidates = products_to_candidates(priced_products, query=query, query_norm=query_norm)
         survivors = self.run_stages(candidates)
         winner = select_winner(survivors)
 
@@ -182,7 +195,10 @@ class LinkageOrchestrator:
         row = winner.row(0, named=True)
         price = row.get(CandidateColumns.PRICE_EUR)
         promo = row.get(CandidateColumns.PROMO_PRICE_EUR)
-        effective = row.get(effective_price_col, price)
+        if effective_price_col != ProductColumns.PRICE_EUR:
+            effective = row.get(effective_price_col, price)
+        else:
+            effective = policy.effective_price(row, is_promo_member)
         if effective is None:
             effective = price
 
@@ -215,6 +231,9 @@ class LinkageOrchestrator:
         self,
         lines: pl.DataFrame,
         products_by_query_norm: dict[str, pl.DataFrame],
+        *,
+        is_promo_member: bool = False,
+        promo_policy: Optional[PromoPolicy] = None,
     ) -> pl.DataFrame:
         """
         Link many shopping-list lines.
@@ -242,6 +261,8 @@ class LinkageOrchestrator:
                     line_index=int(row.get("line_index", i)),
                     query_norm=query_norm,
                     requested_amount_kg=requested,
+                    is_promo_member=is_promo_member,
+                    promo_policy=promo_policy,
                 )
             )
         if not results:

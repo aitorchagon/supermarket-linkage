@@ -6,6 +6,7 @@ import re
 import unicodedata
 from typing import (
     Any,
+    Optional,
 )
 
 import polars as pl
@@ -125,7 +126,7 @@ def normalize_text(text: str) -> str:
     return " ".join(tokens)
 
 
-def parse_requested_amount_kg(text: str) -> float | None:
+def parse_requested_amount_kg(text: str) -> Optional[float]:
     """
     This function parses first mass/volume quantity and transforms it to kilograms
     (either kilograms or liters, as it is the same for both of them in terms of price/kg)

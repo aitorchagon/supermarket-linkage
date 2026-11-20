@@ -1,3 +1,5 @@
+from typing import Optional
+
 import httpx
 
 
@@ -7,7 +9,7 @@ class WorkerError(Exception):
     We make sure the worker error never includes pasted text by the client.
     """
 
-    def __init__(self, message: str, status_code: int | None = None) -> None:
+    def __init__(self, message: str, status_code: Optional[int] = None) -> None:
         super().__init__(message)
         self.status_code = status_code
 
@@ -17,7 +19,7 @@ def _error_message(response: httpx.Response) -> str:
     This function allows to configure an error message for different situations
     according to the status code of the petition we are performing against the API.
     """
-    detail: str | None = None
+    detail: Optional[str] = None
     try:
         body = response.json()
         raw = body.get("detail") if isinstance(body, dict) else None

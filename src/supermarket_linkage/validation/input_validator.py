@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
+from typing import Optional
 
 from supermarket_linkage.consts import (
     MAX_DUPLICATE_RATIO,
@@ -31,7 +32,7 @@ class ValidationResult:
     ok: bool
     lines: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
-    error: str | None = None
+    error: Optional[str] = None
 
 
 class InputValidator:
