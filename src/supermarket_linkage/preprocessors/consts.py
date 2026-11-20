@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from typing import Dict, Optional
-
 MEASURE_KILO = "KILO"
 MEASURE_LITRO = "LITRO"
 MEASURE_UNIDAD = "UNIDAD"
 
-_MEASURE_ALIASES: Dict[str, str] = {
+_MEASURE_ALIASES: dict[str, str] = {
     "kilo": MEASURE_KILO,
     "kilos": MEASURE_KILO,
     "kg": MEASURE_KILO,
@@ -23,7 +21,7 @@ _MEASURE_ALIASES: Dict[str, str] = {
 }
 
 # Density ≈ 1 for ranking: 1 L treated as 1 kg (not physics, just price/kg).
-_TO_KG: Dict[str, float] = {
+_TO_KG: dict[str, float] = {
     "kg": 1.0,
     "kilo": 1.0,
     "kilos": 1.0,
@@ -39,7 +37,7 @@ _TO_KG: Dict[str, float] = {
 }
 
 
-def to_kg(value: float, unit: str) -> Optional[float]:
+def to_kg(value: float, unit: str) -> float | None:
     """
     Convert mass or volume to a kilogram equivalent. None for unknown / count units.
     """
@@ -65,7 +63,7 @@ def is_count_unit(unit: str) -> bool:
     }
 
 
-def _to_float(value: object = None, *, raw: object | None = None) -> Optional[float]:
+def _to_float(value: object = None, *, raw: object | None = None) -> float | None:
     """
     Coerce catalog / paste values to float. None for empty, bool, or unparsable.
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterator
+from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
@@ -97,7 +97,10 @@ def test_jobs_rate_limit_429(settings: WorkerSettings) -> None:
         assert first.status_code == 202
         second = client.post("/jobs", json=body)
         assert second.status_code == 429
-        assert "búsquedas" in second.json()["detail"].lower() or "minuto" in second.json()["detail"].lower()
+        assert (
+            "búsquedas" in second.json()["detail"].lower()
+            or "minuto" in second.json()["detail"].lower()
+        )
 
 
 def test_jobs_happy_path_sample_catalog(client: TestClient) -> None:

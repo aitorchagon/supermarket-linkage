@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import (
-    Any, 
-    Optional,
-    Mapping,
+    Any,
 )
 
 from supermarket_linkage.export.base_export_builder import BaseExportBuilder
@@ -17,5 +16,5 @@ class CarrefourExportBuilder(BaseExportBuilder):
     quantities from tienda.mercadona.es.
     """
 
-    def product_url(self, row: Mapping[str, Any]) -> Optional[str]:
+    def product_url(self, row: Mapping[str, Any]) -> str | None:
         raise NotImplementedError

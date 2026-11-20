@@ -5,15 +5,10 @@ Mercadona catalog client: Algolia search (to retrieve data) + postal→warehouse
 from __future__ import annotations
 
 import time
+from collections.abc import Mapping, Sequence
 from typing import (
     Any,
-    Dict,
-    List,
-    Mapping,
-    Optional,
     Self,
-    Sequence,
-    Tuple,
 )
 from urllib.parse import urlencode
 
@@ -21,6 +16,16 @@ import httpx
 import polars as pl
 
 from supermarket_linkage.catalog.base_catalog_client import BaseCatalogClient
+from supermarket_linkage.catalog.consts import (
+    _ALGOLIA_HEADERS,
+    _ALGOLIA_URL,
+    _POSTAL_URL,
+    _WH_HEADER,
+)
+from supermarket_linkage.catalog.utils import (
+    _to_float,
+    sanitize_warehouse,
+)
 from supermarket_linkage.consts import (
     DEFAULT_WAREHOUSE,
     HTTP_RATE_LIMIT_SECONDS,
@@ -30,24 +35,13 @@ from supermarket_linkage.consts import (
     MERCADONA_PRODUCT_URL_TEMPLATE,
     MERCADONA_SEARCH_BATCH_SIZE,
 )
-from supermarket_linkage.catalog.consts import (
-    _ALGOLIA_URL,
-    _POSTAL_URL,
-    _ALGOLIA_HEADERS,
-    _WH_HEADER,
-)
+from supermarket_linkage.preprocessors.consts import to_kg
 from supermarket_linkage.preprocessors.price_normalizer import (
     PriceNormalizer,
     canonicalize_unit_measure,
 )
-from supermarket_linkage.preprocessors.consts import to_kg
-
 from supermarket_linkage.schemas.product_table import ProductColumns, ProductTable
 from supermarket_linkage.validation.postal_code_validator import is_valid_postal_code
-from supermarket_linkage.catalog.utils import (
-    _to_float,
-    sanitize_warehouse,
-)
 
 # Re-export for tests / callers that import from this module.
 __all__ = [
@@ -60,7 +54,8 @@ __all__ = [
     "sanitize_warehouse",
 ]
 
-def _unit_measure(price_instructions: Mapping[str, Any]) -> Optional[str]:
+
+def _unit_measure(price_instructions: Mapping[str, Any]) -> str | None:
     """
     This function allows to canonicalize unit measures for the product, so we can compare
     products in an uniform way.
@@ -71,9 +66,9 @@ def _unit_measure(price_instructions: Mapping[str, Any]) -> Optional[str]:
     return canonicalize_unit_measure(str(raw))
 
 
-def _approx_weight_kg(price_instructions: Mapping[str, Any]) -> Optional[float]:
+def _approx_weight_kg(price_instructions: Mapping[str, Any]) -> float | None:
     """
-    This function allows to obtain the approximated weight of a product and normalize it to 
+    This function allows to obtain the approximated weight of a product and normalize it to
     kilograms.
     """
     size = _to_float(price_instructions.get("unit_size"))
@@ -82,9 +77,10 @@ def _approx_weight_kg(price_instructions: Mapping[str, Any]) -> Optional[float]:
         return None
     return to_kg(size, str(fmt))
 
+
 def _get_prices(
-        price_instructions: Mapping[str, Any]
-    ) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+    price_instructions: Mapping[str, Any],
+) -> tuple[float | None, float | None, float | None]:
     """
     This function allows to return a regular pack price plus a promo pack price (only when
     price decreased) measured in euros.
@@ -97,6 +93,7 @@ def _get_prices(
         return previous, current, unit_price
     # we do not have a previous pack price for the product
     return current, None, unit_price
+
 
 def get_algolia_index(warehouse: str) -> str:
     """
@@ -132,7 +129,7 @@ def _display_name(hit: Mapping[str, Any]) -> str:
     return name
 
 
-def parse_hit(hit: Mapping[str, Any], source_query: str) -> Dict[str, Any]:
+def parse_hit(hit: Mapping[str, Any], source_query: str) -> dict[str, Any]:
     """
     Parse one Algolia hit (or product-detail JSON) into a ProductTable row dict.
 
@@ -149,9 +146,7 @@ def parse_hit(hit: Mapping[str, Any], source_query: str) -> Dict[str, Any]:
     price_instructions = hit.get("price_instructions") or {}
     if not isinstance(price_instructions, Mapping):
         price_instructions = {}
-    price_eur, promo_price_eur, unit_price_eur = _get_prices(
-        price_instructions=price_instructions
-    )
+    price_eur, promo_price_eur, unit_price_eur = _get_prices(price_instructions=price_instructions)
     return {
         ProductColumns.PRODUCT_ID: product_id or None,
         ProductColumns.NAME: _display_name(hit=hit) or None,
@@ -167,7 +162,7 @@ def parse_hit(hit: Mapping[str, Any], source_query: str) -> Dict[str, Any]:
     }
 
 
-def parse_product_detail(detail: Mapping[str, Any], source_query: str) -> Dict[str, Any]:
+def parse_product_detail(detail: Mapping[str, Any], source_query: str) -> dict[str, Any]:
     """Parse a Mercadona product-detail JSON object (same fields as an Algolia hit)."""
     return parse_hit(detail, source_query)
 
@@ -203,9 +198,9 @@ class MercadonaCatalogClient(BaseCatalogClient):
     def __init__(
         self,
         *,
-        postal_code: Optional[str] = None,
-        warehouse: Optional[str] = None,
-        http_client: Optional[httpx.Client] = None,
+        postal_code: str | None = None,
+        warehouse: str | None = None,
+        http_client: httpx.Client | None = None,
         sleep_s: float = HTTP_RATE_LIMIT_SECONDS,
         hits_per_page: int = MERCADONA_HITS_PER_PAGE,
     ) -> None:
@@ -216,7 +211,7 @@ class MercadonaCatalogClient(BaseCatalogClient):
         self._hits_per_page = hits_per_page
         self._owns_client = http_client is None
         self._http = http_client or httpx.Client(timeout=20.0)
-        self._warehouse_cache: Dict[str, str] = {}
+        self._warehouse_cache: dict[str, str] = {}
 
     def close(self) -> None:
         if self._owns_client:
@@ -228,7 +223,7 @@ class MercadonaCatalogClient(BaseCatalogClient):
     def __exit__(self, *args: object) -> None:
         self.close()
 
-    def search(self, query: str, *, postal_code: Optional[str] = None) -> pl.DataFrame:
+    def search(self, query: str, *, postal_code: str | None = None) -> pl.DataFrame:
         """
         Search one query via Algolia (delegates to ``search_batch``).
         """
@@ -238,7 +233,7 @@ class MercadonaCatalogClient(BaseCatalogClient):
         self,
         queries: Sequence[str],
         *,
-        postal_code: Optional[str] = None,
+        postal_code: str | None = None,
     ) -> pl.DataFrame:
         """
         Search many queries with Algolia multi-query in chunks of
@@ -259,23 +254,19 @@ class MercadonaCatalogClient(BaseCatalogClient):
 
         warehouse = self.resolve_warehouse(postal_code)
         index = get_algolia_index(warehouse)
-        frames: List[pl.DataFrame] = []
+        frames: list[pl.DataFrame] = []
         for start in range(0, len(cleaned), MERCADONA_SEARCH_BATCH_SIZE):
             chunk = cleaned[start : start + MERCADONA_SEARCH_BATCH_SIZE]
             payload = {
                 "requests": [
                     {
                         "indexName": index,
-                        "params": urlencode(
-                            {"query": q, "hitsPerPage": self._hits_per_page}
-                        ),
+                        "params": urlencode({"query": q, "hitsPerPage": self._hits_per_page}),
                     }
                     for q in chunk
                 ]
             }
-            response = self._request(
-                "POST", _ALGOLIA_URL, headers=_ALGOLIA_HEADERS, json=payload
-            )
+            response = self._request("POST", _ALGOLIA_URL, headers=_ALGOLIA_HEADERS, json=payload)
             response.raise_for_status()
             body = response.json()
             results = body.get("results") or []
@@ -287,7 +278,7 @@ class MercadonaCatalogClient(BaseCatalogClient):
             return ProductTable.as_empty_dataframe()
         return ProductTable.enforce_schema(pl.concat(frames, how="diagonal"))
 
-    def resolve_warehouse(self, postal_code: Optional[str] = None) -> str:
+    def resolve_warehouse(self, postal_code: str | None = None) -> str:
         """
         This function allows to map a Spanish postal_code, if provided, to a warehouse
         . We provide the default one if unknown.
@@ -315,7 +306,7 @@ class MercadonaCatalogClient(BaseCatalogClient):
         self._warehouse_cache[code] = resolved
         return resolved
 
-    def _lookup_warehouse(self, postal_code: str) -> Optional[str]:
+    def _lookup_warehouse(self, postal_code: str) -> str | None:
         """
         This function allows to lookup a warehouse using a provided postal code.
         To do that, it performs a PUT against the _POSTAL_URL specified in the constants; if it is not

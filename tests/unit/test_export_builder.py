@@ -31,9 +31,7 @@ _NO_MATCH = {
 
 def test_product_url_from_id_when_url_missing() -> None:
     row = {LineResultColumns.PRODUCT_ID: "4245", LineResultColumns.PRODUCT_URL: None}
-    assert _BUILDER.product_url(row) == MERCADONA_PRODUCT_URL_TEMPLATE.format(
-        product_id="4245"
-    )
+    assert _BUILDER.product_url(row) == MERCADONA_PRODUCT_URL_TEMPLATE.format(product_id="4245")
 
 
 def test_product_url_prefers_trusted_existing() -> None:
@@ -49,9 +47,7 @@ def test_product_url_rejects_foreign_host() -> None:
         LineResultColumns.PRODUCT_ID: "4245",
         LineResultColumns.PRODUCT_URL: "https://evil.example/product/4245",
     }
-    assert _BUILDER.product_url(row) == MERCADONA_PRODUCT_URL_TEMPLATE.format(
-        product_id="4245"
-    )
+    assert _BUILDER.product_url(row) == MERCADONA_PRODUCT_URL_TEMPLATE.format(product_id="4245")
 
 
 def test_product_url_rejects_host_suffix_trick() -> None:

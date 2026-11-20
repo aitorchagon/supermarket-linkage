@@ -1,10 +1,5 @@
 from __future__ import annotations
 
-from typing import (
-    Optional,
-    Tuple,
-    List,
-)
 import math
 
 import polars as pl
@@ -14,7 +9,7 @@ from supermarket_linkage.preprocessors.price_normalizer import parse_weight_from
 from supermarket_linkage.schemas.line_result_table import LineResultColumns, LineResultTable
 
 
-def units_for_total_weight(requested_kg: Optional[float], pack_kg: Optional[float]) -> Tuple[int, bool]:
+def units_for_total_weight(requested_kg: float | None, pack_kg: float | None) -> tuple[int, bool]:
     """
     This function allows to calculate how many units (packages) do we need to fulfill a requested total weight.
     We do not provide less than one unit. It returns a tuple that contains the units needed and whether
@@ -37,7 +32,7 @@ class QuantityResolver(BasePreprocessor):
     def process(self, df: pl.DataFrame) -> pl.DataFrame:
         """
         It creates and fulfills the columns pack_size_kg, units_needed, totals and pack_size_missing,
-        where totals refer to the total requested quantity. Originally, we have optional columns 
+        where totals refer to the total requested quantity. Originally, we have optional columns
         requested_amount_kg, approx_weight_kg, pack_size_kg, name (name of product) and effective_price_eur.
 
         The minimum number of units provided is 1.
@@ -51,10 +46,10 @@ class QuantityResolver(BasePreprocessor):
             else pl.Series("approx_weight_kg", [None] * df.height)
         )
 
-        units_list: List[int] = []
-        pack_list: List[Optional[float]] = []
-        missing_list: List[bool] = []
-        total_list: List[Optional[float]] = []
+        units_list: list[int] = []
+        pack_list: list[float | None] = []
+        missing_list: list[bool] = []
+        total_list: list[float | None] = []
 
         for i, row in enumerate(base.iter_rows(named=True)):
             requested = row[LineResultColumns.REQUESTED_AMOUNT_KG]
@@ -64,12 +59,10 @@ class QuantityResolver(BasePreprocessor):
                 if approx is not None and approx > 0:
                     pack = approx
                 else:
-                    pack = parse_weight_from_name(
-                        name=row[LineResultColumns.NAME]
-                    )
+                    pack = parse_weight_from_name(name=row[LineResultColumns.NAME])
 
             units, pack_missing = units_for_total_weight(
-                requested_kg=requested, 
+                requested_kg=requested,
                 pack_kg=pack,
             )
             if pack_missing:
@@ -87,9 +80,7 @@ class QuantityResolver(BasePreprocessor):
                 pl.Series(LineResultColumns.PACK_SIZE_KG, pack_list, dtype=pl.Float64),
                 pl.Series(LineResultColumns.UNITS_NEEDED, units_list, dtype=pl.Int64),
                 pl.Series(LineResultColumns.PACK_SIZE_MISSING, missing_list, dtype=pl.Boolean),
-                pl.Series(
-                    LineResultColumns.LINE_TOTAL_PRICE_EUR, total_list, dtype=pl.Float64
-                ),
+                pl.Series(LineResultColumns.LINE_TOTAL_PRICE_EUR, total_list, dtype=pl.Float64),
             ]
         )
         return LineResultTable.enforce_schema(out)

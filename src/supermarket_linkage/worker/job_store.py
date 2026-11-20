@@ -13,14 +13,10 @@ from __future__ import annotations
 import threading
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from typing import (
     Any,
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Union,
 )
 
 from supermarket_linkage.consts import JOB_TTL_SECONDS
@@ -28,12 +24,13 @@ from supermarket_linkage.worker.consts import STATUS_QUEUED
 
 # Re-export for callers/tests that import status from this module.
 __all__ = [
+    "STATUS_QUEUED",
+    "InMemoryJobStore",
     "JobProgress",
     "JobRecord",
     "JobStore",
-    "InMemoryJobStore",
-    "STATUS_QUEUED",
 ]
+
 
 @dataclass
 class JobProgress:
@@ -43,7 +40,7 @@ class JobProgress:
     total: int = 0
     status: str = STATUS_QUEUED
 
-    def as_dict(self) -> Dict[str, Union[int, str]]:
+    def as_dict(self) -> dict[str, int | str]:
         return {"done": self.done, "total": self.total, "status": self.status}
 
 
@@ -58,12 +55,12 @@ class JobRecord:
     progress: JobProgress
     created_at: float = 0.0
     updated_at: float = 0.0
-    warnings: List[str] = field(default_factory=list)
-    results: Optional[List[Dict[str, Any]]] = None
-    error: Optional[str] = None
-    matched_count: Optional[int] = None
-    no_match_count: Optional[int] = None
-    unmatched_queries: Optional[List[str]] = None
+    warnings: list[str] = field(default_factory=list)
+    results: list[dict[str, Any]] | None = None
+    error: str | None = None
+    matched_count: int | None = None
+    no_match_count: int | None = None
+    unmatched_queries: list[str] | None = None
 
 
 class JobStore(ABC):
@@ -74,7 +71,7 @@ class JobStore(ABC):
         """Create a job; ``job.id`` must be unique."""
 
     @abstractmethod
-    def get(self, job_id: str) -> Optional[JobRecord]:
+    def get(self, job_id: str) -> JobRecord | None:
         """Return a copy of a job, or None if expired / missing."""
 
     @abstractmethod
@@ -82,15 +79,15 @@ class JobStore(ABC):
         self,
         job_id: str,
         *,
-        status: Optional[str] = None,
-        progress: Optional[JobProgress] = None,
-        warnings: Optional[List[str]] = None,
-        results: Optional[List[Dict[str, Any]]] = None,
-        error: Optional[str] = None,
-        matched_count: Optional[int] = None,
-        no_match_count: Optional[int] = None,
-        unmatched_queries: Optional[List[str]] = None,
-    ) -> Optional[JobRecord]:
+        status: str | None = None,
+        progress: JobProgress | None = None,
+        warnings: list[str] | None = None,
+        results: list[dict[str, Any]] | None = None,
+        error: str | None = None,
+        matched_count: int | None = None,
+        no_match_count: int | None = None,
+        unmatched_queries: list[str] | None = None,
+    ) -> JobRecord | None:
         """Patch fields on an existing job. None if missing or expired."""
 
 
@@ -104,7 +101,7 @@ class InMemoryJobStore(JobStore):
         self,
         ttl_s: int = JOB_TTL_SECONDS,
         *,
-        now: Optional[Callable[[], float]] = None,
+        now: Callable[[], float] | None = None,
     ) -> None:
         self._ttl_s = ttl_s
         self._now = now or time.monotonic
@@ -119,7 +116,7 @@ class InMemoryJobStore(JobStore):
             job.updated_at = now
             self._jobs[job.id] = job
 
-    def get(self, job_id: str) -> Optional[JobRecord]:
+    def get(self, job_id: str) -> JobRecord | None:
         with self._lock:
             self._purge_unlocked()
             job = self._jobs.get(job_id)
@@ -131,15 +128,15 @@ class InMemoryJobStore(JobStore):
         self,
         job_id: str,
         *,
-        status: Optional[str] = None,
-        progress: Optional[JobProgress] = None,
-        warnings: Optional[List[str]] = None,
-        results: Optional[List[Dict[str, Any]]] = None,
-        error: Optional[str] = None,
-        matched_count: Optional[int] = None,
-        no_match_count: Optional[int] = None,
-        unmatched_queries: Optional[List[str]] = None,
-    ) -> Optional[JobRecord]:
+        status: str | None = None,
+        progress: JobProgress | None = None,
+        warnings: list[str] | None = None,
+        results: list[dict[str, Any]] | None = None,
+        error: str | None = None,
+        matched_count: int | None = None,
+        no_match_count: int | None = None,
+        unmatched_queries: list[str] | None = None,
+    ) -> JobRecord | None:
         with self._lock:
             self._purge_unlocked()
             job = self._jobs.get(job_id)
@@ -166,11 +163,7 @@ class InMemoryJobStore(JobStore):
 
     def _purge_unlocked(self) -> None:
         now = self._now()
-        expired = [
-            jid
-            for jid, job in self._jobs.items()
-            if now - job.created_at >= self._ttl_s
-        ]
+        expired = [jid for jid, job in self._jobs.items() if now - job.created_at >= self._ttl_s]
         for jid in expired:
             del self._jobs[jid]
 

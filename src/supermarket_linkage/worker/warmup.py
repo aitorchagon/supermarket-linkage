@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Sequence
 from typing import (
-    Sequence,
-    Dict,
-    Optional, 
     Any,
-    List,
 )
 
 import numpy as np
@@ -19,13 +16,14 @@ from supermarket_linkage.worker.consts import (
     Backend,
 )
 
+
 class TokenOverlapEmbedder:
     """
     This is a bag of tokens, it does not download any model.
     """
 
     def __init__(self) -> None:
-        self._vocab: Dict[str, int] = {}
+        self._vocab: dict[str, int] = {}
 
     def embed(self, texts: Sequence[str]) -> NDArray[np.float32]:
         for text in texts:
@@ -38,6 +36,8 @@ class TokenOverlapEmbedder:
             for tok in _tokens(text):
                 out[i, self._vocab[tok]] = 1.0
         return out
+
+
 class SentenceTransformerEmbedder:
     """
     This is a lazy wrapper around sentence_transformers.SentenceTransformer.
@@ -45,7 +45,7 @@ class SentenceTransformerEmbedder:
 
     def __init__(self, model_name: str = EMBEDDING_MODEL_NAME) -> None:
         self.model_name = model_name
-        self._model: Optional[Any] = None
+        self._model: Any | None = None
 
     def load(self) -> None:
         # we use the import here to avoid loading weights on CPU/GPU if it is not necessary.
@@ -62,19 +62,19 @@ class SentenceTransformerEmbedder:
 
 class ModelRegistry:
     """
-    This is a process-wide embedder, to be loaded-once. 
+    This is a process-wide embedder, to be loaded-once.
     """
 
     def __init__(
         self,
         *,
         backend: Backend = "sentence-transformers",
-        embedder: Optional[Embedder] = None,
+        embedder: Embedder | None = None,
     ) -> None:
         self.backend = backend
-        self._embedder: Optional[Embedder] = embedder
+        self._embedder: Embedder | None = embedder
         self._lock = threading.Lock()
-        self.last_error: Optional[str] = None
+        self.last_error: str | None = None
 
     @property
     def warm(self) -> bool:
@@ -83,7 +83,7 @@ class ModelRegistry:
     def preload(self) -> Embedder:
         """
         This function allows to load the configured backend if it is not
-        already loaded. 
+        already loaded.
         """
         return self.get()
 
@@ -112,9 +112,5 @@ def _build_embedder(backend: Backend) -> Embedder:
     return st
 
 
-def _tokens(text: str) -> List[str]:
-    return [
-        t
-        for t in (text or "").lower().split()
-        if t.isalpha() and t not in _SKIP_TOKENS
-    ]
+def _tokens(text: str) -> list[str]:
+    return [t for t in (text or "").lower().split() if t.isalpha() and t not in _SKIP_TOKENS]

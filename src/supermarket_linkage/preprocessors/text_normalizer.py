@@ -6,10 +6,6 @@ import re
 import unicodedata
 from typing import (
     Any,
-    Dict,
-    FrozenSet,
-    List,
-    Optional,
 )
 
 import polars as pl
@@ -20,7 +16,7 @@ from supermarket_linkage.regex_consts import NON_WORD, QUANTITY
 
 # Spanish grocery stopwords (hard-coded); the ones referring to quantity are stripped via
 # QUANTITY separately. ``o`` is kept here for leftover fragments; OR-splitting runs first.
-STOPWORDS: FrozenSet[str] = frozenset(
+STOPWORDS: frozenset[str] = frozenset(
     {
         "a",
         "al",
@@ -50,7 +46,7 @@ STOPWORDS: FrozenSet[str] = frozenset(
 )
 
 # Common paste typos / Spanish vs Italian pasta spelling → catalog form.
-TOKEN_ALIASES: Dict[str, str] = {
+TOKEN_ALIASES: dict[str, str] = {
     "espagueti": "spaghetti",
     "espaguetis": "spaghetti",
     "espaguetti": "spaghetti",
@@ -77,7 +73,7 @@ _OR_SPLIT: re.Pattern[str] = re.compile(r"\s+o\s+", re.IGNORECASE)
 
 # Leading catalog stems that are form/cut, not the product head (copos de avena…).
 # Values are rough_stem forms so they match after plural stemming.
-NAME_FORMAT_PREFIXES: FrozenSet[str] = frozenset(
+NAME_FORMAT_PREFIXES: frozenset[str] = frozenset(
     {
         "bebida",
         "caldo",
@@ -125,15 +121,11 @@ def normalize_text(text: str) -> str:
     """
     lowered = strip_accents(text).lower()
     cleaned = NON_WORD.sub(" ", lowered)
-    tokens = [
-        TOKEN_ALIASES.get(t, t)
-        for t in cleaned.split()
-        if t and t not in STOPWORDS
-    ]
+    tokens = [TOKEN_ALIASES.get(t, t) for t in cleaned.split() if t and t not in STOPWORDS]
     return " ".join(tokens)
 
 
-def parse_requested_amount_kg(text: str) -> Optional[float]:
+def parse_requested_amount_kg(text: str) -> float | None:
     """
     This function parses first mass/volume quantity and transforms it to kilograms
     (either kilograms or liters, as it is the same for both of them in terms of price/kg)
@@ -151,12 +143,12 @@ def parse_requested_amount_kg(text: str) -> Optional[float]:
     return to_kg(value, unit)
 
 
-def _expand_pasta_alternatives(query_norm: str) -> List[str]:
+def _expand_pasta_alternatives(query_norm: str) -> list[str]:
     """If ``pasta`` is a token, also emit shape-specific queries for Mercadona titles."""
     tokens = query_norm.split()
     if "pasta" not in tokens:
         return [query_norm]
-    out: List[str] = [query_norm]
+    out: list[str] = [query_norm]
     for shape in _PASTA_SHAPE_ALTERNATIVES:
         replaced = " ".join(shape if t == "pasta" else t for t in tokens)
         if replaced and replaced not in out:
@@ -164,7 +156,7 @@ def _expand_pasta_alternatives(query_norm: str) -> List[str]:
     return out
 
 
-def extract_search_alternatives(text: str) -> List[str]:
+def extract_search_alternatives(text: str) -> list[str]:
     """
     Normalized search strings for one list line (OR branches + pasta expansions).
 
@@ -173,7 +165,7 @@ def extract_search_alternatives(text: str) -> List[str]:
     """
     without_qty = QUANTITY.sub(" ", text)
     branches = _OR_SPLIT.split(without_qty)
-    alts: List[str] = []
+    alts: list[str] = []
     for branch in branches:
         norm = normalize_text(branch)
         if not norm:
@@ -192,7 +184,7 @@ def extract_search_query(text: str) -> str:
     return alts[0] if alts else ""
 
 
-def _row_fields(query: str) -> Dict[str, Any]:
+def _row_fields(query: str) -> dict[str, Any]:
     """
     This function extracts normalized product tokens out of a query and returns
     query_norm, search_query and requested_amount_kg for each product.

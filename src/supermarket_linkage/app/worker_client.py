@@ -7,29 +7,28 @@ spam ``POST /warmup`` (rate limit is per master IP).
 
 from __future__ import annotations
 
-from typing import (
-    Optional,
-    Dict,
-)
 import threading
 import time
-from typing import Any
+from typing import (
+    Any,
+)
+
 import httpx
 
-from supermarket_linkage.app.streamlit_consts import (
-    _WARMUP_LOCK,
-    _WARMUP_IN_FLIGHT,
-    _WARMUP_DONE,
-    _LAST_WARMUP_ATTEMPT,
-    _WARMUP_RETRY_S,
-    _WARMUP_TIMEOUT_S,
-    _HEALTH_TIMEOUT_S,
-    _JOB_TIMEOUT_S,
-    _POLL_TIMEOUT_S,
-)
 from supermarket_linkage.app.exceptions import (
     WorkerError,
     _error_message,
+)
+from supermarket_linkage.app.streamlit_consts import (
+    _HEALTH_TIMEOUT_S,
+    _JOB_TIMEOUT_S,
+    _LAST_WARMUP_ATTEMPT,
+    _POLL_TIMEOUT_S,
+    _WARMUP_DONE,
+    _WARMUP_IN_FLIGHT,
+    _WARMUP_LOCK,
+    _WARMUP_RETRY_S,
+    _WARMUP_TIMEOUT_S,
 )
 
 
@@ -38,16 +37,16 @@ class WorkerClient:
     This client is a httpx client wrapper.
     """
 
-    def __init__(self, base_url: str, api_key: Optional[str]) -> None:
+    def __init__(self, base_url: str, api_key: str | None) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
 
-    def _headers(self) -> Dict[str, str]:
+    def _headers(self) -> dict[str, str]:
         if not self.api_key:
             return {}
         return {"X-API-Key": self.api_key}
 
-    def health_or_none(self) -> Dict[str, Any] | None:
+    def health_or_none(self) -> dict[str, Any] | None:
         """
         This function performs a GET against /health or returns an error
         """
@@ -56,7 +55,7 @@ class WorkerClient:
         except WorkerError:
             return None
 
-    def warmup(self) -> Dict[str, Any]:
+    def warmup(self) -> dict[str, Any]:
         """
         This function performs a POST /warmup; may take up to ~90 s on a cold worker.
         It allows to accelerate posterior calls.
@@ -68,9 +67,9 @@ class WorkerClient:
         text: str,
         *,
         store: str,
-        postal_code: Optional[str],
+        postal_code: str | None,
         is_promo_member: bool,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """This function performs a POST /jobs."""
         payload = {
             "text": text,
@@ -90,8 +89,8 @@ class WorkerClient:
         path: str,
         *,
         timeout: float,
-        json: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        json: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         url = f"{self.base_url}{path}"
         try:
             response = httpx.request(
@@ -102,9 +101,7 @@ class WorkerClient:
                 timeout=timeout,
             )
         except httpx.ConnectError as exc:
-            raise WorkerError(
-                f"No se puede conectar al worker ({self.base_url})."
-            ) from exc
+            raise WorkerError(f"No se puede conectar al worker ({self.base_url}).") from exc
         except httpx.TimeoutException as exc:
             raise WorkerError("El worker no respondió a tiempo.") from exc
         if response.is_success:

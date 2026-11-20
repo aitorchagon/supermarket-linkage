@@ -1,5 +1,3 @@
-from typing import Tuple
-
 # --- Record linkage ---
 SEMANTIC_THRESHOLD: float = 0.75
 JW_MAX_DISTANCE: float = 0.1
@@ -42,5 +40,5 @@ HTTP_RATE_LIMIT_SECONDS: float = 0.5
 EMBEDDING_MODEL_NAME: str = "paraphrase-multilingual-MiniLM-L12-v2"
 
 # --- Stores (v1: mercadona only enabled) ---
-SUPPORTED_STORES: Tuple[str] = ("mercadona",)
-COMING_SOON_STORES: Tuple[str] = ("dia", "carrefour")
+SUPPORTED_STORES: tuple[str] = ("mercadona",)
+COMING_SOON_STORES: tuple[str] = ("dia", "carrefour")

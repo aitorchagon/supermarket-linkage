@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import sys
 import time
-from typing import List, Dict, Optional, Any
 from datetime import timedelta
 from pathlib import Path
-
+from typing import Any
 
 _SRC = Path(__file__).resolve().parents[2]
 if str(_SRC) not in sys.path:
@@ -13,14 +12,26 @@ if str(_SRC) not in sys.path:
 
 import streamlit as st
 
+from supermarket_linkage.app.exceptions import WorkerError
+from supermarket_linkage.app.master_config import (
+    MasterConfig,
+    load_master_config,
+)
+from supermarket_linkage.app.streamlit_consts import (
+    _EXPORT,
+    _HEALTH_POLL_WHILE_COLD_S,
+    _POLL_INTERVAL_S,
+    _PROGRESS_LABELS,
+    _RESULT_COLUMN_LABELS,
+    _RESULT_COLUMNS,
+    _STATUS_LABELS,
+    _STORE_LABELS,
+    _STORE_ORDER,
+    _VALIDATOR,
+)
 from supermarket_linkage.app.worker_client import (
     WorkerClient,
     start_warmup_once,
-)
-from supermarket_linkage.app.exceptions import WorkerError
-from supermarket_linkage.app.master_config import (
-    load_master_config,
-    MasterConfig,
 )
 from supermarket_linkage.consts import (
     COMING_SOON_STORES,
@@ -31,19 +42,6 @@ from supermarket_linkage.consts import (
 )
 from supermarket_linkage.schemas.line_result_table import LineResultColumns
 from supermarket_linkage.validation.postal_code_validator import is_valid_postal_code
-from supermarket_linkage.app.streamlit_consts import (
-    _STORE_LABELS,
-    _STORE_ORDER,
-    _PROGRESS_LABELS,
-    _RESULT_COLUMNS,
-    _RESULT_COLUMN_LABELS,
-    _STATUS_LABELS,
-    _POLL_INTERVAL_S,
-    _HEALTH_POLL_WHILE_COLD_S,
-    _VALIDATOR,
-    _EXPORT,
-)
-
 
 
 def _config() -> MasterConfig:
@@ -63,7 +61,7 @@ def _config() -> MasterConfig:
 
 
 def _init_state() -> None:
-    defaults: Dict[str, Any] = {
+    defaults: dict[str, Any] = {
         "list_text": "",
         "_uploaded_id": None,
         "worker_warm": False,
@@ -181,11 +179,11 @@ def _render_worker_status(client: WorkerClient, worker_url: str) -> None:
 
 
 def _render_results(
-    rows: List[Dict[str, Any]],
+    rows: list[dict[str, Any]],
     *,
-    matched_count: Optional[int] = None,
-    no_match_count: Optional[int] = None,
-    unmatched_queries: Optional[List[str]] = None,
+    matched_count: int | None = None,
+    no_match_count: int | None = None,
+    unmatched_queries: list[str] | None = None,
 ) -> None:
     st.subheader("Resultados")
     if matched_count is not None and no_match_count is not None:
@@ -255,9 +253,11 @@ def _render_results(
         url = _EXPORT.product_url(row)
         if not url:
             continue
-        name = str(
-            row.get(LineResultColumns.NAME) or row.get(LineResultColumns.QUERY) or "producto"
-        ).replace("[", "(").replace("]", ")")
+        name = (
+            str(row.get(LineResultColumns.NAME) or row.get(LineResultColumns.QUERY) or "producto")
+            .replace("[", "(")
+            .replace("]", ")")
+        )
         link_lines.append(f"- [{name}]({url})")
     if link_lines:
         st.markdown("**Enlaces**\n\n" + "\n".join(link_lines))
@@ -321,12 +321,7 @@ def main() -> None:
     elif not postal:
         st.caption("El código postal fija el almacén y los precios.")
 
-    can_match = (
-        store_ok
-        and validated is not None
-        and validated.ok
-        and postal_ok
-    )
+    can_match = store_ok and validated is not None and validated.ok and postal_ok
     if not st.session_state.worker_warm and can_match:
         st.caption("El worker puede estar apagado; la primera búsqueda tardará un poco más.")
 
@@ -353,9 +348,7 @@ def main() -> None:
                 st.session_state.job_error = str(exc)
 
     job_id = st.session_state.get("job_id")
-    if job_id and st.session_state.get("results") is None and not st.session_state.get(
-        "job_error"
-    ):
+    if job_id and st.session_state.get("results") is None and not st.session_state.get("job_error"):
         try:
             _poll_job(client, job_id)
         except WorkerError as exc:

@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from typing import (
-    List,
-    Optional,
-    Sequence,
-)
+from collections.abc import Sequence
 
 import polars as pl
 
 from supermarket_linkage.pipeline.base_stage import BaseStage
 from supermarket_linkage.pipeline.blocking_stage import BlockingStage
-from supermarket_linkage.pipeline.consts import MATCH_STAGE_DISTANCE, STATUS_MATCHED, STATUS_NO_MATCH
+from supermarket_linkage.pipeline.consts import (
+    MATCH_STAGE_DISTANCE,
+    STATUS_MATCHED,
+    STATUS_NO_MATCH,
+)
 from supermarket_linkage.pipeline.distance_stage import DistanceStage
 from supermarket_linkage.pipeline.heuristic_stage import HeuristicStage
 from supermarket_linkage.pipeline.semantic_stage import Embedder, SemanticStage
@@ -48,7 +48,7 @@ def products_to_candidates(
     products: pl.DataFrame,
     *,
     query: str,
-    query_norm: Optional[str] = None,
+    query_norm: str | None = None,
 ) -> pl.DataFrame:
     """
     Build CandidateTable rows from ProductTable search hits.
@@ -97,15 +97,15 @@ class LinkageOrchestrator:
     def __init__(
         self,
         embedder: Embedder,
-        stages: Optional[Sequence[BaseStage]] = None,
+        stages: Sequence[BaseStage] | None = None,
         store: str = "mercadona",
-        quantity_resolver: Optional[QuantityResolver] = None,
+        quantity_resolver: QuantityResolver | None = None,
     ) -> None:
         self.embedder = embedder
         self.store = store
         self.quantity_resolver = quantity_resolver or QuantityResolver()
         if stages is not None:
-            self.stages: List[BaseStage] = list(stages)
+            self.stages: list[BaseStage] = list(stages)
         else:
             self.stages = [
                 HeuristicStage(),
@@ -129,8 +129,8 @@ class LinkageOrchestrator:
         products: pl.DataFrame,
         *,
         line_index: int = 0,
-        query_norm: Optional[str] = None,
-        requested_amount_kg: Optional[float] = None,
+        query_norm: str | None = None,
+        requested_amount_kg: float | None = None,
         effective_price_col: str = ProductColumns.PRICE_EUR,
     ) -> pl.DataFrame:
         """
@@ -206,7 +206,7 @@ class LinkageOrchestrator:
         if "query" not in lines.columns:
             raise ValueError("link_lines requires a 'query' column.")
 
-        results: List[pl.DataFrame] = []
+        results: list[pl.DataFrame] = []
         for i, row in enumerate(lines.iter_rows(named=True)):
             query = row["query"] or ""
             query_norm = row.get("query_norm")

@@ -3,13 +3,10 @@ from __future__ import annotations
 import hmac
 import logging
 import uuid
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import (
     Any,
-    AsyncGenerator,
-    Dict,
-    List,
-    Optional,
 )
 
 from fastapi import (
@@ -48,7 +45,7 @@ log = logging.getLogger(__name__)
 class JobCreateBody(BaseModel):
     text: str
     store: str = "mercadona"
-    postal_code: Optional[str] = None
+    postal_code: str | None = None
     is_promo_member: bool = False
 
 
@@ -62,28 +59,28 @@ class JobCreateResponse(BaseModel):
     id: str
     status: str
     progress: ProgressBody
-    warnings: List[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
 
 class JobGetResponse(BaseModel):
     id: str
     status: str
     progress: ProgressBody
-    warnings: List[str] = Field(default_factory=list)
-    results: Optional[List[Dict[str, Any]]] = None
-    error: Optional[str] = None
-    matched_count: Optional[int] = None
-    no_match_count: Optional[int] = None
-    unmatched_queries: Optional[List[str]] = None
+    warnings: list[str] = Field(default_factory=list)
+    results: list[dict[str, Any]] | None = None
+    error: str | None = None
+    matched_count: int | None = None
+    no_match_count: int | None = None
+    unmatched_queries: list[str] | None = None
 
 
 def create_app(
     *,
-    settings: Optional[WorkerSettings] = None,
-    job_store: Optional[JobStore] = None,
-    rate_limiter: Optional[RateLimiter] = None,
-    model_registry: Optional[ModelRegistry] = None,
-    catalog_client: Optional[BaseCatalogClient] = None,
+    settings: WorkerSettings | None = None,
+    job_store: JobStore | None = None,
+    rate_limiter: RateLimiter | None = None,
+    model_registry: ModelRegistry | None = None,
+    catalog_client: BaseCatalogClient | None = None,
 ) -> FastAPI:
     """
     Build the worker FastAPI app.
@@ -153,7 +150,7 @@ def create_app(
         return "unknown"
 
     @app.get("/health")
-    def health(request: Request) -> Dict[str, Any]:
+    def health(request: Request) -> dict[str, Any]:
         """
         Liveness probe: process is up. ``status`` is always ok when reachable;
         readiness for matching is ``warm``.
@@ -167,7 +164,7 @@ def create_app(
         }
 
     @app.post("/warmup", dependencies=[Depends(require_api_key)])
-    def warmup(request: Request) -> Dict[str, Any]:
+    def warmup(request: Request) -> dict[str, Any]:
         """Preload the embedding model; rate-limited per IP."""
         ip = client_ip(request)
         limiter_inst: RateLimiter = request.app.state.rate_limiter

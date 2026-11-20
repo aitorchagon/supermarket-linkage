@@ -1,11 +1,9 @@
-from typing import Tuple
-
+from supermarket_linkage.pipeline.consts import STATUS_NO_MATCH
 from supermarket_linkage.schemas.line_result_table import LineResultColumns
 
+__all__ = ["CSV_COLUMNS", "STATUS_NO_MATCH"]
 
-STATUS_NO_MATCH = "no_match"
-
-CSV_COLUMNS: Tuple[str, ...] = (
+CSV_COLUMNS: tuple[str, ...] = (
     LineResultColumns.QUERY,
     LineResultColumns.STATUS,
     LineResultColumns.PRODUCT_ID,

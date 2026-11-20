@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import List, Optional
 from collections import Counter
 from dataclasses import dataclass, field
 
@@ -21,17 +20,18 @@ def is_valid_postal_code(code: str) -> bool:
     """
     return bool(POSTAL_CODE.fullmatch(code))
 
+
 @dataclass(frozen=True)
 class ValidationResult:
     """
     This is the outcome of validating a paste. if lines are ready for the pipeline,
-    we return ok, error if not ok. 
+    we return ok, error if not ok.
     """
 
     ok: bool
-    lines: List[str] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
-    error: Optional[str] = None
+    lines: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    error: str | None = None
 
 
 class InputValidator:
@@ -43,7 +43,7 @@ class InputValidator:
         """
         This function allows to sanitize past text and enforce size or spam caps.
         As an input, we have the raw text area; as an output, we have non-empty lines with
-        controls stripped, empties dropped, capped at MAX_LINES and MAX_TOTAL_BYTES, avoid duplicates. 
+        controls stripped, empties dropped, capped at MAX_LINES and MAX_TOTAL_BYTES, avoid duplicates.
         """
         if not isinstance(text, str):
             return ValidationResult(ok=False, error="Input must be a string.")
@@ -58,7 +58,7 @@ class InputValidator:
         cleaned = CONTROL_CHARS.sub("", text)
         cleaned = cleaned.replace("\r\n", "\n").replace("\r", "\n")
 
-        lines: List[str] = []
+        lines: list[str] = []
         for raw_line in cleaned.split("\n"):
             line = raw_line.strip()
             if len(line) < MIN_LINE_LENGTH:
@@ -66,15 +66,14 @@ class InputValidator:
             if len(line) > MAX_LINE_LENGTH:
                 return ValidationResult(
                     ok=False,
-                    error=(
-                        f"Line exceeds {MAX_LINE_LENGTH} characters "
-                        f"({len(line)})."
-                    ),
+                    error=(f"Line exceeds {MAX_LINE_LENGTH} characters ({len(line)})."),
                 )
             lines.append(line)
 
         if not lines:
-            return ValidationResult(ok=False, error="The pasted text is empty, please provide some text.")
+            return ValidationResult(
+                ok=False, error="The pasted text is empty, please provide some text."
+            )
 
         if len(lines) > MAX_LINES:
             return ValidationResult(
@@ -88,11 +87,9 @@ class InputValidator:
                 error="Duplicate-line spam detected.",
             )
 
-        warnings: List[str] = []
+        warnings: list[str] = []
         if len(lines) > WARN_LINES:
-            warnings.append(
-                f"Long list ({len(lines)} lines); processing may take minutes."
-            )
+            warnings.append(f"Long list ({len(lines)} lines); processing may take minutes.")
         multi_qty = [line for line in lines if len(QUANTITY.findall(line)) >= 2]
         if multi_qty:
             warnings.append(
@@ -103,7 +100,7 @@ class InputValidator:
         return ValidationResult(ok=True, lines=lines, warnings=warnings)
 
 
-def _duplicate_ratio(lines: List[str]) -> float:
+def _duplicate_ratio(lines: list[str]) -> float:
     """
     This function calculates the fraction of lines that matches
     the most common line, to determine whether we have duplicates.
