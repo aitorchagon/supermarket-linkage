@@ -2,15 +2,8 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import (
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Sequence,
-    Tuple,
-)
 
 import polars as pl
 
@@ -50,11 +43,11 @@ class JobTimeoutError(Exception):
 class JobSpec:
     """Validated job payload (lines already sanitized; paste not retained)."""
 
-    lines: Tuple[str, ...]
+    lines: tuple[str, ...]
     store: str
-    postal_code: Optional[str]
+    postal_code: str | None
     is_promo_member: bool
-    warnings: Tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -63,7 +56,7 @@ class ResultsSummary:
 
     matched_count: int
     no_match_count: int
-    unmatched_queries: Tuple[str, ...]
+    unmatched_queries: tuple[str, ...]
 
 
 class JobOrchestrator:
@@ -76,20 +69,20 @@ class JobOrchestrator:
         job_store: JobStore,
         *,
         embedder_provider: Callable[[], Embedder],
-        catalog_client: Optional[BaseCatalogClient] = None,
+        catalog_client: BaseCatalogClient | None = None,
         use_sample_catalog: bool = False,
-        sample_catalog_path: Optional[str] = None,
+        sample_catalog_path: str | None = None,
         job_timeout_s: int = JOB_TIMEOUT_SECONDS,
-        promo_policy: Optional[PromoPolicy] = None,
-        now: Optional[Callable[[], float]] = None,
+        promo_policy: PromoPolicy | None = None,
+        now: Callable[[], float] | None = None,
     ) -> None:
         self._store = job_store
         self._embedder_provider = embedder_provider
         self._fixed_client = catalog_client
         self._use_sample = use_sample_catalog
         self._sample_path = sample_catalog_path
-        self._sample_client: Optional[SampleCatalogClient] = None
-        self._live_clients: Dict[str, BaseCatalogClient] = {}
+        self._sample_client: SampleCatalogClient | None = None
+        self._live_clients: dict[str, BaseCatalogClient] = {}
         self._timeout_s = job_timeout_s
         self._promo = promo_policy or MercadonaPromoPolicy()
         self._now = now or time.monotonic
@@ -154,14 +147,10 @@ class JobOrchestrator:
         spec: JobSpec,
         *,
         deadline: float,
-    ) -> List[Dict[str, object]]:
+    ) -> list[dict[str, object]]:
         self._check_deadline(deadline)
-        line_alts: List[List[str]] = [
-            extract_search_alternatives(line) for line in spec.lines
-        ]
-        unique = list(
-            dict.fromkeys(q for alts in line_alts for q in alts if q)
-        )
+        line_alts: list[list[str]] = [extract_search_alternatives(line) for line in spec.lines]
+        unique = list(dict.fromkeys(q for alts in line_alts for q in alts if q))
 
         client = self._create_client(spec.store)
         hits = client.search_batch(
@@ -179,7 +168,7 @@ class JobOrchestrator:
 
         embedder = self._embedder_provider()
         linkage = LinkageOrchestrator(embedder=embedder, store=spec.store)
-        frames: List[pl.DataFrame] = []
+        frames: list[pl.DataFrame] = []
         for i, (line, alts) in enumerate(zip(spec.lines, line_alts, strict=True)):
             self._check_deadline(deadline)
             result = _link_line_with_alternatives(
@@ -240,10 +229,10 @@ def assert_supported_store(store: str) -> str:
     return key
 
 
-def summarize_results(results: Sequence[Dict[str, object]]) -> ResultsSummary:
+def summarize_results(results: Sequence[dict[str, object]]) -> ResultsSummary:
     """Count matched / no_match rows and collect unmatched query strings."""
     matched = 0
-    unmatched: List[str] = []
+    unmatched: list[str] = []
     for row in results:
         status = str(row.get(LineResultColumns.STATUS) or "")
         if status == STATUS_MATCHED:
@@ -257,7 +246,7 @@ def summarize_results(results: Sequence[Dict[str, object]]) -> ResultsSummary:
     )
 
 
-def _split_hits(hits: pl.DataFrame, unique: Sequence[str]) -> Dict[str, pl.DataFrame]:
+def _split_hits(hits: pl.DataFrame, unique: Sequence[str]) -> dict[str, pl.DataFrame]:
     """
     Partition batch search hits by ``source_query`` into one frame per unique query.
 
@@ -270,7 +259,7 @@ def _split_hits(hits: pl.DataFrame, unique: Sequence[str]) -> Dict[str, pl.DataF
     src = ProductColumns.SOURCE_QUERY
     parts = hits.partition_by(src, as_dict=True, include_key=True)
     # Polars may key single-column partitions by scalar or 1-tuple depending on version.
-    by_query: Dict[str, pl.DataFrame] = {}
+    by_query: dict[str, pl.DataFrame] = {}
     for key, frame in parts.items():
         if isinstance(key, tuple):
             q = key[0] if len(key) == 1 else key
@@ -286,7 +275,7 @@ def _link_line_with_alternatives(
     linkage: LinkageOrchestrator,
     line: str,
     alternatives: Sequence[str],
-    hits_by_query: Dict[str, pl.DataFrame],
+    hits_by_query: dict[str, pl.DataFrame],
     line_index: int,
 ) -> pl.DataFrame:
     """
@@ -323,14 +312,12 @@ def _apply_promo(
     policy: PromoPolicy,
 ) -> pl.DataFrame:
     """Set effective pack price and line total from PromoPolicy (usually one row)."""
-    effective: List[Optional[float]] = []
-    totals: List[Optional[float]] = []
+    effective: list[float | None] = []
+    totals: list[float | None] = []
     for row in result.iter_rows(named=True):
         price = policy.effective_price(row, is_promo_member)
         units = row.get(LineResultColumns.UNITS_NEEDED)
-        total = (
-            (float(units) * price) if price is not None and units is not None else None
-        )
+        total = (float(units) * price) if price is not None and units is not None else None
         effective.append(price)
         totals.append(total)
     out = result.with_columns(

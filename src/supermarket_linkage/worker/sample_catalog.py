@@ -2,15 +2,9 @@
 
 from __future__ import annotations
 
-from typing import (
-    List,
-    Set,
-    Optional,
-    Union,
-)
 import json
 import os
-from typing import Sequence
+from collections.abc import Sequence
 from pathlib import Path
 
 import polars as pl
@@ -43,7 +37,7 @@ def default_sample_catalog_path() -> Path:
     )
 
 
-def load_sample_catalog(path: Optional[Path] = None) -> pl.DataFrame:
+def load_sample_catalog(path: Path | None = None) -> pl.DataFrame:
     """
     This function loads Mercadona-shaped products and fill price per kg."""
     target = path or default_sample_catalog_path()
@@ -57,15 +51,15 @@ class SampleCatalogClient(BaseCatalogClient):
     This client allows for a token-subset search over a static JSON catalog.
     """
 
-    def __init__(self, path: Optional[Union[str, Path]] = None) -> None:
+    def __init__(self, path: str | Path | None = None) -> None:
         resolved = Path(path) if path else None
         self._catalog = load_sample_catalog(resolved)
-        self._name_tokens: List[Set[str]] = [
+        self._name_tokens: list[set[str]] = [
             set(normalize_text(name or "").split())
             for name in self._catalog[ProductColumns.NAME].to_list()
         ]
 
-    def search(self, query: str, *, postal_code: Optional[str] = None) -> pl.DataFrame:
+    def search(self, query: str, *, postal_code: str | None = None) -> pl.DataFrame:
         """
         Search one query (postal code ignored offline).
         """
@@ -76,7 +70,7 @@ class SampleCatalogClient(BaseCatalogClient):
         self,
         queries: Sequence[str],
         *,
-        postal_code: Optional[str] = None,
+        postal_code: str | None = None,
     ) -> pl.DataFrame:
         """
         Match products whose name tokens contain all query tokens.
@@ -85,7 +79,7 @@ class SampleCatalogClient(BaseCatalogClient):
         Post: ProductTable rows with ``source_query`` set to the normalized query.
         """
         del postal_code
-        frames: List[pl.DataFrame] = []
+        frames: list[pl.DataFrame] = []
         for raw in queries:
             if not raw or not str(raw).strip():
                 continue

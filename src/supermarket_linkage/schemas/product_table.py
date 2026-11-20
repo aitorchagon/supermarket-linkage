@@ -1,4 +1,4 @@
-from typing import Any, Dict, Type
+from typing import Any
 
 import polars as pl
 
@@ -21,11 +21,11 @@ class ProductColumns(ColumnsEnumBase):
 
 class ProductTable(TableSchemaBase):
     @classmethod
-    def get_columns_enum(cls) -> Type[ColumnsEnumBase]:
+    def get_columns_enum(cls) -> type[ColumnsEnumBase]:
         return ProductColumns
 
     @classmethod
-    def dtypes(cls) -> Dict[str, Any]:
+    def dtypes(cls) -> dict[str, Any]:
         return {
             ProductColumns.PRODUCT_ID: pl.String,
             ProductColumns.NAME: pl.String,

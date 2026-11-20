@@ -1,15 +1,10 @@
 from __future__ import annotations
 
 import json
-from typing import (
-    List,
-    Dict,
-)
 from pathlib import Path
-import pytest
 
 import polars as pl
-import numpy as np
+import pytest
 
 from supermarket_linkage.pipeline.linkage_orchestrator import LinkageOrchestrator
 from supermarket_linkage.preprocessors.price_normalizer import PriceNormalizer
@@ -20,32 +15,9 @@ from supermarket_linkage.preprocessors.text_normalizer import (
 )
 from supermarket_linkage.schemas.line_result_table import LineResultColumns
 from supermarket_linkage.schemas.product_table import ProductColumns, ProductTable
+from supermarket_linkage.worker.warmup import TokenOverlapEmbedder
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "sample_catalog.json"
-
-_SKIP = frozenset({"kg", "g", "l", "ml", "cl", "uds", "ud", "x", "pack", "packs"})
-
-class _TokenOverlapEmbedder:
-    """Deterministic bag-of-content-tokens (CI-safe, no downloads)."""
-
-    def __init__(self) -> None:
-        self._vocab: Dict[str, int] = {}
-
-    def _tokens(self, text: str) -> List[str]:
-        return [t for t in (text or "").lower().split() if t.isalpha() and t not in _SKIP]
-
-    def embed(self, texts: List[str]):
-    
-        for text in texts:
-            for tok in self._tokens(text):
-                if tok not in self._vocab:
-                    self._vocab[tok] = len(self._vocab)
-        dim = max(len(self._vocab), 1)
-        out = np.zeros((len(texts), dim), dtype=np.float64)
-        for i, text in enumerate(texts):
-            for tok in self._tokens(text):
-                out[i, self._vocab[tok]] = 1.0
-        return out
 
 
 def _load_catalog() -> pl.DataFrame:
@@ -72,9 +44,7 @@ def _search_offline(catalog: pl.DataFrame, query_norm: str) -> pl.DataFrame:
         return ProductTable.as_empty_dataframe()
 
     hits = pl.DataFrame(rows)
-    hits = hits.with_columns(
-        pl.lit(query_norm).alias(ProductColumns.SOURCE_QUERY)
-    )
+    hits = hits.with_columns(pl.lit(query_norm).alias(ProductColumns.SOURCE_QUERY))
     return ProductTable.enforce_schema(hits)
 
 
@@ -85,7 +55,7 @@ def catalog() -> pl.DataFrame:
 
 @pytest.fixture
 def orchestrator() -> LinkageOrchestrator:
-    return LinkageOrchestrator(embedder=_TokenOverlapEmbedder(), store="mercadona")
+    return LinkageOrchestrator(embedder=TokenOverlapEmbedder(), store="mercadona")
 
 
 def test_sample_catalog_size(catalog: pl.DataFrame) -> None:
@@ -108,9 +78,7 @@ def test_pipeline_arroz_basmati_picks_cheaper_per_kg(
     assert result[LineResultColumns.PACK_SIZE_MISSING][0] is False
 
 
-def test_pipeline_leche_entera(
-    catalog: pl.DataFrame, orchestrator: LinkageOrchestrator
-) -> None:
+def test_pipeline_leche_entera(catalog: pl.DataFrame, orchestrator: LinkageOrchestrator) -> None:
     query = "leche entera 1l"
     products = _search_offline(catalog, extract_search_query(query))
     result = orchestrator.link_line(query, products, line_index=1)
@@ -131,9 +99,7 @@ def test_pipeline_branch_b_unidad_no_weight(
     assert result[LineResultColumns.UNITS_NEEDED][0] == 1
 
 
-def test_pipeline_no_match(
-    catalog: pl.DataFrame, orchestrator: LinkageOrchestrator
-) -> None:
+def test_pipeline_no_match(catalog: pl.DataFrame, orchestrator: LinkageOrchestrator) -> None:
     query = "salsa de soja premium inexistente"
     products = _search_offline(catalog, extract_search_query(query))
     result = orchestrator.link_line(query, products, line_index=3)
@@ -148,9 +114,7 @@ def test_pipeline_or_alternative_picks_leche(
     alts = extract_search_alternatives(query)
     assert alts[0] == "leche"
     products = _search_offline(catalog, alts[0])
-    result = orchestrator.link_line(
-        query, products, line_index=4, query_norm=alts[0]
-    )
+    result = orchestrator.link_line(query, products, line_index=4, query_norm=alts[0])
     assert result[LineResultColumns.STATUS][0] == "matched"
     assert result[LineResultColumns.PRODUCT_ID][0] in {"30902", "30903", "30910"}
 

@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from typing import (
-    Any, 
-    Optional,
-    Mapping,
+    Any,
 )
 
-from supermarket_linkage.schemas.product_table import ProductColumns
 from supermarket_linkage.catalog.utils import _to_float
+from supermarket_linkage.schemas.product_table import ProductColumns
+
 
 class PromoPolicy(ABC):
     """
@@ -16,7 +16,7 @@ class PromoPolicy(ABC):
     """
 
     @abstractmethod
-    def effective_price(self, row: Mapping[str, Any], is_promo_member: bool) -> Optional[float]:
+    def effective_price(self, row: Mapping[str, Any], is_promo_member: bool) -> float | None:
         """
         This function allows to return the payable pack price for one product row.
 
@@ -50,6 +50,7 @@ class MercadonaPromoPolicy(PromoPolicy):
 class CarrefourPromoPolicy(PromoPolicy):
     def effective_price(self, row, is_promo_member):
         raise NotImplementedError
+
 
 class DIAPromoPolicy(PromoPolicy):
     def effective_price(self, row, is_promo_member):

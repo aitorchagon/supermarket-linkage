@@ -4,8 +4,7 @@ from supermarket_linkage.consts import (
     MAX_TOTAL_BYTES,
     WARN_LINES,
 )
-from supermarket_linkage.validation.input_validator import InputValidator
-from supermarket_linkage.validation.input_validator import is_valid_postal_code
+from supermarket_linkage.validation.input_validator import InputValidator, is_valid_postal_code
 
 
 def test_accepts_single_line() -> None:

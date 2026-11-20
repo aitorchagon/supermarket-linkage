@@ -1,5 +1,4 @@
 from typing import (
-    FrozenSet,
     Literal,
 )
 
@@ -12,7 +11,7 @@ STATUS_TIMEOUT = "timeout"
 STATUS_SEARCHING = "searching"
 STATUS_LINKING = "linking"
 API_KEY_HEADERS = ("x-api-key", "worker-api-key", "worker_api_key")
-_SKIP_TOKENS: FrozenSet[str] = frozenset(
+_SKIP_TOKENS: frozenset[str] = frozenset(
     {"kg", "g", "l", "ml", "cl", "uds", "ud", "x", "pack", "packs"}
 )
 Backend = Literal["sentence-transformers", "sample"]

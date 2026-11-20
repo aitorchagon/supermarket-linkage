@@ -1,5 +1,5 @@
-from typing import Optional
 import httpx
+
 
 class WorkerError(Exception):
     """
@@ -7,9 +7,10 @@ class WorkerError(Exception):
     We make sure the worker error never includes pasted text by the client.
     """
 
-    def __init__(self, message: str, status_code: Optional[int] = None) -> None:
+    def __init__(self, message: str, status_code: int | None = None) -> None:
         super().__init__(message)
         self.status_code = status_code
+
 
 def _error_message(response: httpx.Response) -> str:
     """
@@ -29,9 +30,7 @@ def _error_message(response: httpx.Response) -> str:
     if response.status_code == 401:
         return "Clave de API inválida o ausente."
     if response.status_code == 429:
-        return (
-            "Demasiadas búsquedas en poco tiempo. Espera un minuto e inténtalo de nuevo."
-        )
+        return "Demasiadas búsquedas en poco tiempo. Espera un minuto e inténtalo de nuevo."
     if response.status_code == 404:
         return (
             "Ese resultado ya no está disponible (el servidor se reinició o pasó demasiado "
@@ -41,12 +40,8 @@ def _error_message(response: httpx.Response) -> str:
         # Map worker jargon to Spanish UX copy when possible.
         low = detail.lower()
         if "rate limit" in low:
-            return (
-                "Demasiadas búsquedas en poco tiempo. Espera un minuto e inténtalo de nuevo."
-            )
+            return "Demasiadas búsquedas en poco tiempo. Espera un minuto e inténtalo de nuevo."
         if "job not found" in low:
-            return (
-                "Ese resultado ya no está disponible. Pulsa Emparejar otra vez."
-            )
+            return "Ese resultado ya no está disponible. Pulsa Emparejar otra vez."
         return detail
     return f"Error del worker (HTTP {response.status_code})."

@@ -1,8 +1,3 @@
-from typing import (
-    Dict,
-    Tuple,
-
-)
 import threading
 
 from supermarket_linkage.consts import (
@@ -26,14 +21,14 @@ _JOB_TIMEOUT_S = 90.0
 _POLL_TIMEOUT_S = 15.0
 _HEALTH_POLL_WHILE_COLD_S = 2.0
 
-_STORE_LABELS: Dict[str, str] = {
+_STORE_LABELS: dict[str, str] = {
     "mercadona": "Mercadona",
     "dia": "DIA (Próximamente)",
     "carrefour": "Carrefour (Próximamente)",
 }
-_STORE_ORDER: Tuple[str] = (*SUPPORTED_STORES, *COMING_SOON_STORES)
+_STORE_ORDER: tuple[str] = (*SUPPORTED_STORES, *COMING_SOON_STORES)
 
-_PROGRESS_LABELS: Dict[str, str] = {
+_PROGRESS_LABELS: dict[str, str] = {
     "queued": "en cola",
     "running": "en curso",
     "searching": "buscando catálogo",
@@ -43,7 +38,7 @@ _PROGRESS_LABELS: Dict[str, str] = {
     "timeout": "tiempo agotado",
 }
 
-_RESULT_COLUMNS: Tuple[str] = (
+_RESULT_COLUMNS: tuple[str] = (
     LineResultColumns.QUERY,
     LineResultColumns.STATUS,
     LineResultColumns.NAME,
@@ -56,7 +51,7 @@ _RESULT_COLUMNS: Tuple[str] = (
     LineResultColumns.PRODUCT_URL,
 )
 
-_RESULT_COLUMN_LABELS: Dict[str, str] = {
+_RESULT_COLUMN_LABELS: dict[str, str] = {
     LineResultColumns.QUERY: "Consulta",
     LineResultColumns.STATUS: "Estado",
     LineResultColumns.NAME: "Producto",
@@ -69,7 +64,7 @@ _RESULT_COLUMN_LABELS: Dict[str, str] = {
     LineResultColumns.PRODUCT_URL: "Enlace",
 }
 
-_STATUS_LABELS: Dict[str, str] = {
+_STATUS_LABELS: dict[str, str] = {
     "matched": "Emparejado",
     "no_match": "Sin emparejar",
 }

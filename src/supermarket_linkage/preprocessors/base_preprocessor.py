@@ -13,7 +13,7 @@ class BasePreprocessor(ABC):
     @abstractmethod
     def process(self, df: pl.DataFrame) -> pl.DataFrame:
         """
-        This function applies the preprocessor. It expects a polars DataFrame 
+        This function applies the preprocessor. It expects a polars DataFrame
         and it will transform it with derived columns, the row count should
         remain unchanged.
         """

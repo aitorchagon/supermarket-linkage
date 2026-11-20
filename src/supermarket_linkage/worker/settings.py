@@ -2,18 +2,16 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import (
-    Optional,
-)
+
 from supermarket_linkage.consts import (
-    JOB_TIMEOUT_SECONDS, 
+    JOB_TIMEOUT_SECONDS,
     JOB_TTL_SECONDS,
 )
 
 
 def env_flag(name: str) -> bool:
     """
-    Returns True when name is a true environment flag. 
+    Returns True when name is a true environment flag.
     """
     return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -24,10 +22,10 @@ class WorkerSettings:
     These are runtime flags for the FastAPI worker.
     """
 
-    api_key: Optional[str]
+    api_key: str | None
     use_sample_catalog: bool
     skip_model_preload: bool
-    sample_catalog_path: Optional[str]
+    sample_catalog_path: str | None
     job_timeout_s: int = JOB_TIMEOUT_SECONDS
     job_ttl_s: int = JOB_TTL_SECONDS
 

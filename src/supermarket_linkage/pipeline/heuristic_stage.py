@@ -65,13 +65,8 @@ class HeuristicStage(BaseStage):
                     )
                 ]
             else:
-                norms = [
-                    normalize_text(name or "")
-                    for name in df[CandidateColumns.NAME].to_list()
-                ]
-            df = df.with_columns(
-                pl.Series(CandidateColumns.NAME_NORM, norms, dtype=pl.String)
-            )
+                norms = [normalize_text(name or "") for name in df[CandidateColumns.NAME].to_list()]
+            df = df.with_columns(pl.Series(CandidateColumns.NAME_NORM, norms, dtype=pl.String))
         elif CandidateColumns.NAME_NORM not in df.columns:
             raise ValueError("HeuristicStage requires 'name' or 'name_norm'.")
 

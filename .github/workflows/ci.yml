@@ -48,10 +48,9 @@ jobs:
           -m "not live"
 
   lint:
-    name: Ruff (advisory)
+    name: Ruff
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    continue-on-error: true
 
     steps:
       - name: Checkout

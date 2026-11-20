@@ -1,4 +1,4 @@
-from typing import Any, Dict, Type
+from typing import Any
 
 import polars as pl
 
@@ -32,11 +32,11 @@ class LineResultColumns(ColumnsEnumBase):
 
 class LineResultTable(TableSchemaBase):
     @classmethod
-    def get_columns_enum(cls) -> Type[ColumnsEnumBase]:
+    def get_columns_enum(cls) -> type[ColumnsEnumBase]:
         return LineResultColumns
 
     @classmethod
-    def dtypes(cls) -> Dict[str, Any]:
+    def dtypes(cls) -> dict[str, Any]:
         return {
             LineResultColumns.LINE_INDEX: pl.Int64,
             LineResultColumns.QUERY: pl.String,

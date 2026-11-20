@@ -68,18 +68,14 @@ class DistanceStage(BaseStage):
                 .alias(CandidateColumns.JW_DISTANCE)
             )
             .with_columns(
-                (1.0 - pl.col(CandidateColumns.JW_DISTANCE)).alias(
-                    CandidateColumns.JW_SIMILARITY
-                )
+                (1.0 - pl.col(CandidateColumns.JW_DISTANCE)).alias(CandidateColumns.JW_SIMILARITY)
             )
             .drop(["_query", "_name"])
         )
 
         close = pl.col(CandidateColumns.JW_DISTANCE) < self.max_distance
         if CandidateColumns.HEURISTIC_PASS in distances.columns:
-            kept = distances.filter(
-                close | (pl.col(CandidateColumns.HEURISTIC_PASS) == True)  # noqa: E712
-            )
+            kept = distances.filter(close | (pl.col(CandidateColumns.HEURISTIC_PASS) == True))
         else:
             kept = distances.filter(close)
         return CandidateTable.enforce_schema(kept)

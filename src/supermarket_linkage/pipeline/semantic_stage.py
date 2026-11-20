@@ -1,9 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import (
-    List,
     Protocol,
-    Sequence,
     runtime_checkable,
 )
 
@@ -39,12 +38,12 @@ def cosine_similarity(a: NDArray[np.floating], b: NDArray[np.floating]) -> float
     return float(np.dot(a, b) / denom)
 
 
-def _name_embed_variants(name: str | None, name_norm: str | None) -> List[str]:
+def _name_embed_variants(name: str | None, name_norm: str | None) -> list[str]:
     """
     MiniLM is sensitive to casing/accents on some Spanish titles. Score the best
     of display name, accent-stripped lowercase, and token name_norm.
     """
-    variants: List[str] = []
+    variants: list[str] = []
     if name:
         variants.append(name)
         variants.append(strip_accents(name).lower())
@@ -99,10 +98,9 @@ class SemanticStage(BaseStage):
             for name, norm in zip(raw_names, norm_names, strict=True)
         ]
 
-        unique: List[str] = list(
+        unique: list[str] = list(
             dict.fromkeys(
-                [q for q in queries if q]
-                + [v for variants in per_row_variants for v in variants]
+                [q for q in queries if q] + [v for variants in per_row_variants for v in variants]
             )
         )
         if not unique:
@@ -115,7 +113,7 @@ class SemanticStage(BaseStage):
             )
         by_text = {t: embeddings[i] for i, t in enumerate(unique)}
 
-        scores: List[float] = []
+        scores: list[float] = []
         for query, variants in zip(queries, per_row_variants, strict=True):
             if not query or query not in by_text or not variants:
                 scores.append(0.0)
@@ -130,9 +128,7 @@ class SemanticStage(BaseStage):
         )
         above = pl.col(CandidateColumns.SEMANTIC_SCORE) >= self.threshold
         if CandidateColumns.HEURISTIC_PASS in scored.columns:
-            kept = scored.filter(
-                above | (pl.col(CandidateColumns.HEURISTIC_PASS) == True)  # noqa: E712
-            )
+            kept = scored.filter(above | (pl.col(CandidateColumns.HEURISTIC_PASS) == True))
         else:
             kept = scored.filter(above)
         return CandidateTable.enforce_schema(kept)

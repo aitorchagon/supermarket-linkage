@@ -1,17 +1,13 @@
 from __future__ import annotations
 
-from typing import (
-    Optional,
-    List,
-)
 import polars as pl
 
 from supermarket_linkage.preprocessors.base_preprocessor import BasePreprocessor
 from supermarket_linkage.preprocessors.consts import (
+    _MEASURE_ALIASES,
     MEASURE_KILO,
     MEASURE_LITRO,
     MEASURE_UNIDAD,
-    _MEASURE_ALIASES,
     _to_float,
     to_kg,
 )
@@ -19,7 +15,7 @@ from supermarket_linkage.regex_consts import PACK_SIZE
 from supermarket_linkage.schemas.product_table import ProductColumns, ProductTable
 
 
-def canonicalize_unit_measure(raw: Optional[str]) -> Optional[str]:
+def canonicalize_unit_measure(raw: str | None) -> str | None:
     """
     This function maps catalog unit strings and reported aliases to either KILO, LITRO or UNIDAD."""
     if raw is None or raw == "":
@@ -30,7 +26,7 @@ def canonicalize_unit_measure(raw: Optional[str]) -> Optional[str]:
     return _MEASURE_ALIASES.get(key)
 
 
-def parse_weight_from_name(name: Optional[str]) -> Optional[float]:
+def parse_weight_from_name(name: str | None) -> float | None:
     """
     We take the first pack_size match in product name and we return its kilogram equivalent
     """
@@ -46,11 +42,11 @@ def parse_weight_from_name(name: Optional[str]) -> Optional[float]:
 
 
 def _price_per_kg(
-    measure: Optional[str],
-    price_eur: Optional[float],
-    unit_price_eur: Optional[float],
-    weight_kg: Optional[float],
-) -> Optional[float]:
+    measure: str | None,
+    price_eur: float | None,
+    unit_price_eur: float | None,
+    weight_kg: float | None,
+) -> float | None:
     """
     This function allows to compute euros per kilo (or euros per liter, it is treated the same),
     it returns a null when it is unknown.
@@ -87,18 +83,14 @@ class PriceNormalizer(BasePreprocessor):
         """
         enforced = ProductTable.enforce_schema(df)
 
-        measures: List[Optional[str]] = []
-        weights: List[Optional[float]] = []
-        prices_kg: List[Optional[float]] = []
+        measures: list[str | None] = []
+        weights: list[float | None] = []
+        prices_kg: list[float | None] = []
 
         for row in enforced.iter_rows(named=True):
-            measure = canonicalize_unit_measure(
-                raw=row[ProductColumns.UNIT_MEASURE]
-            )
+            measure = canonicalize_unit_measure(raw=row[ProductColumns.UNIT_MEASURE])
             existing_w = row[ProductColumns.APPROX_WEIGHT_KG]
-            parsed_w = parse_weight_from_name(
-                name=row[ProductColumns.NAME]
-            )
+            parsed_w = parse_weight_from_name(name=row[ProductColumns.NAME])
             weight = existing_w if existing_w is not None else parsed_w
 
             if weight is None and measure in (MEASURE_KILO, MEASURE_LITRO):

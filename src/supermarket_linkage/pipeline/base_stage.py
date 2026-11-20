@@ -6,6 +6,7 @@ import polars as pl
 
 from supermarket_linkage.schemas.candidate_table import CandidateColumns
 
+
 class BaseStage(ABC):
     """
     This is a base class for a stage in a pipeline process, particularly associated
@@ -31,7 +32,7 @@ class BaseStage(ABC):
             raise ValueError(f"{stage_name} requires 'name' or 'name_norm'.")
 
         return self._process(df)
-    
+
     @abstractmethod
     def _process(self, df: pl.DataFrame) -> pl.DataFrame:
         raise NotImplementedError

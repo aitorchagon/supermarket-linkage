@@ -17,7 +17,7 @@ class BlockingStage(BaseStage):
     def _process(self, df: pl.DataFrame) -> pl.DataFrame:
         """
         This function allows to filter to a current query's search block. We have
-        source_query and query_norm columns and, as a result, we only have the rows that correspond to the same 
+        source_query and query_norm columns and, as a result, we only have the rows that correspond to the same
         block.
         """
         if df.height == 0:

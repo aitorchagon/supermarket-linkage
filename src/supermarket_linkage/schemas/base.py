@@ -1,11 +1,7 @@
 from abc import ABC, abstractmethod
 from enum import StrEnum
 from typing import (
-    Any, 
-    Dict, 
-    List, 
-    Type, 
-    Union,
+    Any,
 )
 
 import polars as pl
@@ -16,7 +12,7 @@ class ColumnsEnumBase(StrEnum):
     This is a base StrEnum class for table column names."""
 
     @classmethod
-    def list(cls) -> List[str]:
+    def list(cls) -> list[str]:
         return [col.value for col in cls]  # type: ignore[misc]
 
 
@@ -27,20 +23,18 @@ class TableSchemaBase(ABC):
 
     @classmethod
     @abstractmethod
-    def get_columns_enum(cls) -> Type[ColumnsEnumBase]:
+    def get_columns_enum(cls) -> type[ColumnsEnumBase]:
         """Return the Columns StrEnum for this table."""
-        pass
 
     @classmethod
-    def columns(cls) -> List[str]:
+    def columns(cls) -> list[str]:
         """Column names as strings, in enum order."""
         return cls.get_columns_enum().list()
 
     @classmethod
     @abstractmethod
-    def dtypes(cls) -> Dict[str, Any]:
+    def dtypes(cls) -> dict[str, Any]:
         """Map column name to Polars dtype (DataFrame schema)."""
-        pass
 
     @classmethod
     def as_empty_dataframe(cls) -> pl.DataFrame:
@@ -48,7 +42,7 @@ class TableSchemaBase(ABC):
         return pl.DataFrame(schema=cls.dtypes())
 
     @classmethod
-    def get_column_index(cls, column: Union[str, ColumnsEnumBase]) -> int:
+    def get_column_index(cls, column: str | ColumnsEnumBase) -> int:
         """Index of a column name or enum member. Raises ValueError if missing."""
         cols = cls.columns()
         enum_cls = cls.get_columns_enum()

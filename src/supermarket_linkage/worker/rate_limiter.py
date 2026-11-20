@@ -2,21 +2,14 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import (
-    Callable,
-    Optional,
-    Dict,
-)
+from collections.abc import Callable
 
 from supermarket_linkage.consts import (
     MAX_CONCURRENT_JOBS_PER_IP,
     MAX_JOBS_PER_HOUR,
     MAX_WARMUP_PER_HOUR,
 )
-from supermarket_linkage.worker.consts import (
-    SECONDS_PER_HOUR
-)
-
+from supermarket_linkage.worker.consts import SECONDS_PER_HOUR
 
 
 class _TokenBucket:
@@ -52,7 +45,7 @@ class _TokenBucket:
     def _refill(self) -> None:
         """
         This function updates the timestamp of token update, and the amount of tokens that we have available
-        to consume. 
+        to consume.
         """
         now = self._now()
         elapsed = now - self._updated_at
@@ -74,7 +67,7 @@ class RateLimiter:
     def __init__(
         self,
         *,
-        now: Optional[Callable[[], float]] = None,
+        now: Callable[[], float] | None = None,
         max_warmup_per_hour: int = MAX_WARMUP_PER_HOUR,
         max_jobs_per_hour: int = MAX_JOBS_PER_HOUR,
         max_concurrent_jobs: int = MAX_CONCURRENT_JOBS_PER_IP,
@@ -83,9 +76,9 @@ class RateLimiter:
         self._max_warmup = max_warmup_per_hour
         self._max_jobs = max_jobs_per_hour
         self._max_concurrent = max_concurrent_jobs
-        self._warmup: Dict[str, _TokenBucket] = {}
-        self._jobs: Dict[str, _TokenBucket] = {}
-        self._inflight: Dict[str, int] = {}
+        self._warmup: dict[str, _TokenBucket] = {}
+        self._jobs: dict[str, _TokenBucket] = {}
+        self._inflight: dict[str, int] = {}
         self._lock = threading.Lock()
 
     def allow_warmup(self, ip: str) -> bool:
@@ -124,7 +117,7 @@ class RateLimiter:
 
     def reserve_concurrent_job(self, ip: str) -> bool:
         """
-        This function reserves a concurrent job slot for 'ip' if it is free. 
+        This function reserves a concurrent job slot for 'ip' if it is free.
         We return True and we increment inflight if and only if we are under max_concurrent_jobs. Inflight
         measures instatenous concurrency (the number of active jobs a specific IP is executing at the exact moment), as
         contrasted with _jobs and _warmup, which measure overall usage of a single client (track request volume against
