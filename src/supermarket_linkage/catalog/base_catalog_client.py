@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
+from typing import Optional
 
 import polars as pl
 
@@ -14,7 +15,7 @@ class BaseCatalogClient(ABC):
     """Fetch store catalog hits for one or many search queries."""
 
     @abstractmethod
-    def search(self, query: str, *, postal_code: str | None = None) -> pl.DataFrame:
+    def search(self, query: str, *, postal_code: Optional[str] = None) -> pl.DataFrame:
         """
         Search one query.
 
@@ -27,7 +28,7 @@ class BaseCatalogClient(ABC):
         self,
         queries: Sequence[str],
         *,
-        postal_code: str | None = None,
+        postal_code: Optional[str] = None,
     ) -> pl.DataFrame:
         """
         Search many queries (chunked round-trips).

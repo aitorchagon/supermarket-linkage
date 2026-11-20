@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import logging
 import os
+from typing import Optional
 
 _DEFAULT_FORMAT = "%(asctime)s %(levelname)s [%(name)s] %(message)s"
 _DEFAULT_DATEFMT = "%Y-%m-%d %H:%M:%S"
 
 
-def configure_logging(level: str | None = None) -> None:
+def configure_logging(level: Optional[str] = None) -> None:
     """
     Configure root logging once for the worker process.
     """

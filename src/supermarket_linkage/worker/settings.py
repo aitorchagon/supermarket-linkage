@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from typing import Optional
 
 from supermarket_linkage.consts import (
     JOB_TIMEOUT_SECONDS,
@@ -22,10 +23,10 @@ class WorkerSettings:
     These are runtime flags for the FastAPI worker.
     """
 
-    api_key: str | None
+    api_key: Optional[str]
     use_sample_catalog: bool
     skip_model_preload: bool
-    sample_catalog_path: str | None
+    sample_catalog_path: Optional[str]
     job_timeout_s: int = JOB_TIMEOUT_SECONDS
     job_ttl_s: int = JOB_TTL_SECONDS
 

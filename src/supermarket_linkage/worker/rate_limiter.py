@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 import time
 from collections.abc import Callable
+from typing import Optional
 
 from supermarket_linkage.consts import (
     MAX_CONCURRENT_JOBS_PER_IP,
@@ -67,7 +68,7 @@ class RateLimiter:
     def __init__(
         self,
         *,
-        now: Callable[[], float] | None = None,
+        now: Optional[Callable[[], float]] = None,
         max_warmup_per_hour: int = MAX_WARMUP_PER_HOUR,
         max_jobs_per_hour: int = MAX_JOBS_PER_HOUR,
         max_concurrent_jobs: int = MAX_CONCURRENT_JOBS_PER_IP,

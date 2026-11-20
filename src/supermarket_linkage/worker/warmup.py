@@ -4,6 +4,7 @@ import threading
 from collections.abc import Sequence
 from typing import (
     Any,
+    Optional,
 )
 
 import numpy as np
@@ -45,7 +46,7 @@ class SentenceTransformerEmbedder:
 
     def __init__(self, model_name: str = EMBEDDING_MODEL_NAME) -> None:
         self.model_name = model_name
-        self._model: Any | None = None
+        self._model: Optional[Any] = None
 
     def load(self) -> None:
         # we use the import here to avoid loading weights on CPU/GPU if it is not necessary.
@@ -69,12 +70,12 @@ class ModelRegistry:
         self,
         *,
         backend: Backend = "sentence-transformers",
-        embedder: Embedder | None = None,
+        embedder: Optional[Embedder] = None,
     ) -> None:
         self.backend = backend
-        self._embedder: Embedder | None = embedder
+        self._embedder: Optional[Embedder] = embedder
         self._lock = threading.Lock()
-        self.last_error: str | None = None
+        self.last_error: Optional[str] = None
 
     @property
     def warm(self) -> bool:

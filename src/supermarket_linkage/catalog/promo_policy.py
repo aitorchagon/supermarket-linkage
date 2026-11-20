@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from typing import (
     Any,
+    Optional,
 )
 
 from supermarket_linkage.catalog.utils import _to_float
@@ -16,7 +17,7 @@ class PromoPolicy(ABC):
     """
 
     @abstractmethod
-    def effective_price(self, row: Mapping[str, Any], is_promo_member: bool) -> float | None:
+    def effective_price(self, row: Mapping[str, Any], is_promo_member: bool) -> Optional[float]:
         """
         This function allows to return the payable pack price for one product row.
 
@@ -34,7 +35,7 @@ class PromoPolicy(ABC):
 class MercadonaPromoPolicy(PromoPolicy):
     """Use Mercadona promo/sale price only when the shopper opts into promos."""
 
-    def effective_price(self, row: Mapping[str, Any], is_promo_member: bool) -> float | None:
+    def effective_price(self, row: Mapping[str, Any], is_promo_member: bool) -> Optional[float]:
         """Member + promo field → promo; otherwise regular ``price_eur``.
 
         Pre: ``row`` is a product/candidate mapping.

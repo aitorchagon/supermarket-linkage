@@ -4,7 +4,7 @@ import sys
 import time
 from datetime import timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 _SRC = Path(__file__).resolve().parents[2]
 if str(_SRC) not in sys.path:
@@ -142,7 +142,7 @@ def _poll_job(client: WorkerClient, job_id: str) -> None:
     status_box.empty()
 
 
-def _health_poll_interval(worker_warm: bool) -> timedelta | None:
+def _health_poll_interval(worker_warm: bool) -> Optional[timedelta]:
     """Poll /health only while cold. Continuous pings block Fly autostop."""
     if worker_warm:
         return None
@@ -181,9 +181,9 @@ def _render_worker_status(client: WorkerClient, worker_url: str) -> None:
 def _render_results(
     rows: list[dict[str, Any]],
     *,
-    matched_count: int | None = None,
-    no_match_count: int | None = None,
-    unmatched_queries: list[str] | None = None,
+    matched_count: Optional[int] = None,
+    no_match_count: Optional[int] = None,
+    unmatched_queries: Optional[list[str]] = None,
 ) -> None:
     st.subheader("Resultados")
     if matched_count is not None and no_match_count is not None:

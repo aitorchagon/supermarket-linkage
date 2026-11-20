@@ -7,6 +7,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import (
     Any,
+    Optional,
 )
 
 from fastapi import (
@@ -45,7 +46,7 @@ log = logging.getLogger(__name__)
 class JobCreateBody(BaseModel):
     text: str
     store: str = "mercadona"
-    postal_code: str | None = None
+    postal_code: Optional[str] = None
     is_promo_member: bool = False
 
 
@@ -67,20 +68,20 @@ class JobGetResponse(BaseModel):
     status: str
     progress: ProgressBody
     warnings: list[str] = Field(default_factory=list)
-    results: list[dict[str, Any]] | None = None
-    error: str | None = None
-    matched_count: int | None = None
-    no_match_count: int | None = None
-    unmatched_queries: list[str] | None = None
+    results: Optional[list[dict[str, Any]]] = None
+    error: Optional[str] = None
+    matched_count: Optional[int] = None
+    no_match_count: Optional[int] = None
+    unmatched_queries: Optional[list[str]] = None
 
 
 def create_app(
     *,
-    settings: WorkerSettings | None = None,
-    job_store: JobStore | None = None,
-    rate_limiter: RateLimiter | None = None,
-    model_registry: ModelRegistry | None = None,
-    catalog_client: BaseCatalogClient | None = None,
+    settings: Optional[WorkerSettings] = None,
+    job_store: Optional[JobStore] = None,
+    rate_limiter: Optional[RateLimiter] = None,
+    model_registry: Optional[ModelRegistry] = None,
+    catalog_client: Optional[BaseCatalogClient] = None,
 ) -> FastAPI:
     """
     Build the worker FastAPI app.

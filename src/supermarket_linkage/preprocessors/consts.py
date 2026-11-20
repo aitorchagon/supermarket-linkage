@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Optional
+
 MEASURE_KILO = "KILO"
 MEASURE_LITRO = "LITRO"
 MEASURE_UNIDAD = "UNIDAD"
@@ -37,7 +39,7 @@ _TO_KG: dict[str, float] = {
 }
 
 
-def to_kg(value: float, unit: str) -> float | None:
+def to_kg(value: float, unit: str) -> Optional[float]:
     """
     Convert mass or volume to a kilogram equivalent. None for unknown / count units.
     """
@@ -63,7 +65,7 @@ def is_count_unit(unit: str) -> bool:
     }
 
 
-def _to_float(value: object = None, *, raw: object | None = None) -> float | None:
+def _to_float(value: object = None, *, raw: Optional[object] = None) -> Optional[float]:
     """
     Coerce catalog / paste values to float. None for empty, bool, or unparsable.
 

@@ -6,6 +6,7 @@ import warnings
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Optional
 from urllib.parse import parse_qs
 
 import httpx
@@ -191,7 +192,7 @@ def run_job(
 
 def _wait_done(client: TestClient, job_id: str, *, timeout_s: float) -> dict:
     deadline = time.monotonic() + timeout_s
-    last: dict | None = None
+    last: Optional[dict] = None
     while time.monotonic() < deadline:
         response = client.get(f"/jobs/{job_id}")
         assert response.status_code == 200, response.text

@@ -11,6 +11,7 @@ import threading
 import time
 from typing import (
     Any,
+    Optional,
 )
 
 import httpx
@@ -37,7 +38,7 @@ class WorkerClient:
     This client is a httpx client wrapper.
     """
 
-    def __init__(self, base_url: str, api_key: str | None) -> None:
+    def __init__(self, base_url: str, api_key: Optional[str]) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
 
@@ -46,7 +47,7 @@ class WorkerClient:
             return {}
         return {"X-API-Key": self.api_key}
 
-    def health_or_none(self) -> dict[str, Any] | None:
+    def health_or_none(self) -> Optional[dict[str, Any]]:
         """
         This function performs a GET against /health or returns an error
         """
@@ -67,7 +68,7 @@ class WorkerClient:
         text: str,
         *,
         store: str,
-        postal_code: str | None,
+        postal_code: Optional[str],
         is_promo_member: bool,
     ) -> dict[str, Any]:
         """This function performs a POST /jobs."""
@@ -89,7 +90,7 @@ class WorkerClient:
         path: str,
         *,
         timeout: float,
-        json: dict[str, Any] | None = None,
+        json: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
         url = f"{self.base_url}{path}"
         try:

@@ -204,3 +204,34 @@ def test_api_key_required() -> None:
 def test_default_max_jobs_constant_used_by_limiter() -> None:
     # Guard: personal/demo cap stays high enough for Streamlit Cloud's shared IP.
     assert MAX_JOBS_PER_HOUR >= 60
+
+
+def test_jobs_promo_member_flips_winner_and_effective_price(client: TestClient) -> None:
+    regular_created = client.post(
+        "/jobs",
+        json={
+            "text": "leche 1l",
+            "store": "mercadona",
+            "postal_code": "28001",
+            "is_promo_member": False,
+        },
+    )
+    assert regular_created.status_code == 202
+    regular_row = client.get(f"/jobs/{regular_created.json()['id']}").json()["results"][0]
+    assert regular_row["product_id"] == "30910"
+    assert regular_row["effective_price_eur"] == pytest.approx(0.80)
+
+    promo_created = client.post(
+        "/jobs",
+        json={
+            "text": "leche 1l",
+            "store": "mercadona",
+            "postal_code": "28001",
+            "is_promo_member": True,
+        },
+    )
+    assert promo_created.status_code == 202
+    promo_row = client.get(f"/jobs/{promo_created.json()['id']}").json()["results"][0]
+    assert promo_row["product_id"] == "30902"
+    assert promo_row["effective_price_eur"] == pytest.approx(0.75)
+    assert promo_row["price_per_kg"] == pytest.approx(0.75)
