@@ -149,3 +149,28 @@ def test_pipeline_link_lines_batch(
     assert out[LineResultColumns.STATUS].to_list()[0] == "matched"
     assert out[LineResultColumns.STATUS].to_list()[1] == "matched"
     assert out[LineResultColumns.STATUS].to_list()[2] == "no_match"
+
+
+def test_pipeline_rescues_non_heuristic_candidate_via_semantic_and_distance(
+    orchestrator: LinkageOrchestrator,
+) -> None:
+    query = "aceite de oliva virgen extraa 1l"
+    q_norm = "aceite oliva virgen extraa"
+    products = ProductTable.enforce_schema(
+        pl.DataFrame(
+            {
+                ProductColumns.PRODUCT_ID: ["69066", "30902"],
+                ProductColumns.NAME: ["Aceite de oliva virgen extra", "Leche entera 1 l"],
+                ProductColumns.PRICE_EUR: [4.50, 0.84],
+                ProductColumns.UNIT_MEASURE: ["LITRO", "LITRO"],
+                ProductColumns.APPROX_WEIGHT_KG: [1.0, 1.0],
+                ProductColumns.PRICE_PER_KG: [4.50, 0.84],
+                ProductColumns.SOURCE_QUERY: [q_norm, q_norm],
+            }
+        )
+    )
+    result = orchestrator.link_line(query, products, line_index=0, query_norm=q_norm)
+    assert result[LineResultColumns.STATUS][0] == "matched"
+    assert result[LineResultColumns.PRODUCT_ID][0] == "69066"
+    assert result[LineResultColumns.SEMANTIC_SCORE][0] >= 0.75
+    assert result[LineResultColumns.JW_SIMILARITY][0] > 0.9

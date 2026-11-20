@@ -29,17 +29,36 @@ def select_winner(survivors: pl.DataFrame) -> pl.DataFrame:
     """
     Pick one winner among stage-4 survivors.
 
-    Branch A (any priced ``price_per_kg``): lowest price/kg, then highest JW similarity.
-    Branch B (all null): highest JW similarity.
+    Branch A (any priced ``price_per_kg``): lowest price/kg, then highest JW similarity,
+    then highest semantic score when present.
+    Branch B (all null): highest JW similarity, then highest semantic score when present.
     """
     if survivors.height == 0:
         return survivors
 
+    has_semantic = CandidateColumns.SEMANTIC_SCORE in survivors.columns
     priced = survivors.filter(pl.col(CandidateColumns.PRICE_PER_KG).is_not_null())
     if priced.height > 0:
+        if has_semantic:
+            return priced.sort(
+                [
+                    CandidateColumns.PRICE_PER_KG,
+                    CandidateColumns.JW_SIMILARITY,
+                    CandidateColumns.SEMANTIC_SCORE,
+                ],
+                descending=[False, True, True],
+                nulls_last=True,
+            ).head(1)
         return priced.sort(
             [CandidateColumns.PRICE_PER_KG, CandidateColumns.JW_SIMILARITY],
             descending=[False, True],
+        ).head(1)
+
+    if has_semantic:
+        return survivors.sort(
+            [CandidateColumns.JW_SIMILARITY, CandidateColumns.SEMANTIC_SCORE],
+            descending=[True, True],
+            nulls_last=True,
         ).head(1)
     return survivors.sort(CandidateColumns.JW_SIMILARITY, descending=True).head(1)
 
