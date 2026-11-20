@@ -43,13 +43,14 @@ def heuristic_pass(query_norm: str | None, name_norm: str | None) -> bool:
 
 
 class HeuristicStage(BaseStage):
-    """Keep rows that pass exact-normalized or token-subset heuristic."""
+    """Compute and attach ``heuristic_pass`` flags without dropping candidates."""
 
     def _process(self, df: pl.DataFrame) -> pl.DataFrame:
-        """Set ``heuristic_pass`` and keep only True rows.
+        """Set ``name_norm`` and ``heuristic_pass`` on all candidate rows.
 
         Pre: ``query_norm`` plus ``name`` and/or ``name_norm``.
-        Post: Candidate schema; only heuristic passers remain.
+        Post: Candidate schema; all rows are retained so downstream stages can
+        evaluate non-heuristic candidates.
         """
         if df.height == 0:
             return CandidateTable.enforce_schema(df)
@@ -78,7 +79,5 @@ class HeuristicStage(BaseStage):
                 strict=True,
             )
         ]
-        final = df.with_columns(
-            pl.Series(CandidateColumns.HEURISTIC_PASS, flags, dtype=pl.Boolean)
-        ).filter(pl.col(CandidateColumns.HEURISTIC_PASS))
+        final = df.with_columns(pl.Series(CandidateColumns.HEURISTIC_PASS, flags, dtype=pl.Boolean))
         return CandidateTable.enforce_schema(final)

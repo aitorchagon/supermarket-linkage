@@ -48,6 +48,28 @@ def test_branch_b_all_null_highest_jw() -> None:
     assert winner[CandidateColumns.PRODUCT_ID][0] == "b"
 
 
+def test_branch_a_semantic_score_tiebreak() -> None:
+    df = _survivors(
+        product_id=["low_sem", "high_sem"],
+        price_per_kg=[1.5, 1.5],
+        jw_similarity=[0.95, 0.95],
+        semantic_score=[0.78, 0.94],
+    )
+    winner = select_winner(df)
+    assert winner[CandidateColumns.PRODUCT_ID][0] == "high_sem"
+
+
+def test_branch_b_semantic_score_tiebreak() -> None:
+    df = _survivors(
+        product_id=["low_sem", "high_sem"],
+        price_per_kg=[None, None],
+        jw_similarity=[0.95, 0.95],
+        semantic_score=[0.76, 0.91],
+    )
+    winner = select_winner(df)
+    assert winner[CandidateColumns.PRODUCT_ID][0] == "high_sem"
+
+
 def test_select_winner_empty() -> None:
     empty = pl.DataFrame(
         schema={

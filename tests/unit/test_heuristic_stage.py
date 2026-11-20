@@ -62,10 +62,14 @@ def test_heuristic_stage_filters_and_flags() -> None:
         }
     )
     out = HeuristicStage().process(df)
-    assert out.height == 1
-    assert out[CandidateColumns.PRODUCT_ID][0] == "1"
-    assert out[CandidateColumns.HEURISTIC_PASS][0] is True
-    assert out[CandidateColumns.NAME_NORM][0] == "arroz basmati 1 kg"
+    assert out.height == 3
+    assert out[CandidateColumns.PRODUCT_ID].to_list() == ["1", "2", "3"]
+    assert out[CandidateColumns.HEURISTIC_PASS].to_list() == [True, False, False]
+    assert out[CandidateColumns.NAME_NORM].to_list() == [
+        "arroz basmati 1 kg",
+        "arroz redondo 1 kg",
+        "leche entera 1 l",
+    ]
 
 
 def test_heuristic_stage_empty() -> None:
